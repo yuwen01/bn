@@ -1,46 +1,46 @@
+use crate::arith::U256;
+use crate::fields::{const_fq, FieldElement, Fq, Fq2, Fq6};
 use core::ops::{Add, Mul, Neg, Sub};
 use rand::Rng;
-use crate::fields::{const_fq, FieldElement, Fq, Fq2, Fq6};
-use crate::arith::U256;
 
 fn frobenius_coeffs_c1(power: usize) -> Fq2 {
     match power % 12 {
         0 => Fq2::one(),
         1 => Fq2::new(
             const_fq([
-                12653890742059813127,
-                14585784200204367754,
-                1278438861261381767,
-                212598772761311868,
+                0xd60b35dadcc9e470,
+                0x5c521e08292f2176,
+                0xe8b99fdd76e68b60,
+                0x1284b71c2865a7df,
             ]),
             const_fq([
-                11683091849979440498,
-                14992204589386555739,
-                15866167890766973222,
-                1200023580730561873,
+                0xca5cf05f80f362ac,
+                0x747992778eeec7e5,
+                0xa6327cfe12150b8e,
+                0x246996f3b4fae7e6,
             ]),
         ),
         2 => Fq2::new(
             const_fq([
-                14595462726357228530,
-                17349508522658994025,
-                1017833795229664280,
-                299787779797702374,
+                0xe4bd44e5607cfd49,
+                0xc28f069fbb966e3d,
+                0x5e6dd9e7e0acccb0,
+                0x30644e72e131a029,
             ]),
             Fq::zero(),
         ),
         3 => Fq2::new(
             const_fq([
-                3914496794763385213,
-                790120733010914719,
-                7322192392869644725,
-                581366264293887267,
+                0xe86f7d391ed4a67f,
+                0x894cb38dbe55d24a,
+                0xefe9608cd0acaa90,
+                0x19dc81cfcc82e4bb,
             ]),
             const_fq([
-                12817045492518885689,
-                4440270538777280383,
-                11178533038884588256,
-                2767537931541304486,
+                0x7694aa2bf4c0c101,
+                0x7f03a5e397d439ec,
+                0x6cbeee33576139d,
+                0xabf8b60be77d73,
             ]),
         ),
         _ => unimplemented!(),
@@ -60,7 +60,7 @@ impl Fq12 {
     }
 
     fn final_exponentiation_first_chunk(&self) -> Option<Fq12> {
-        match self.inverse() {
+        match self.inverse_unconstrained() {
             Some(b) => {
                 let a = self.unitary_inverse();
                 let c = a * b;
@@ -112,7 +112,8 @@ impl Fq12 {
     pub fn frobenius_map(&self, power: usize) -> Self {
         Fq12 {
             c0: self.c0.frobenius_map(power),
-            c1: self.c1
+            c1: self
+                .c1
                 .frobenius_map(power)
                 .scale(frobenius_coeffs_c1(power)),
         }
@@ -296,7 +297,8 @@ impl FieldElement for Fq12 {
         let ab = self.c0 * self.c1;
 
         Fq12 {
-            c0: (self.c1.mul_by_nonresidue() + self.c0) * (self.c0 + self.c1) - ab
+            c0: (self.c1.mul_by_nonresidue() + self.c0) * (self.c0 + self.c1)
+                - ab
                 - ab.mul_by_nonresidue(),
             c1: ab + ab,
         }
@@ -310,6 +312,10 @@ impl FieldElement for Fq12 {
             }),
             None => None,
         }
+    }
+
+    fn inverse_unconstrained(self) -> Option<Self> {
+        self.inverse() // same as constrained
     }
 }
 
