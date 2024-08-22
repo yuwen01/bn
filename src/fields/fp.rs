@@ -1,18 +1,19 @@
 use crate::arith::{U256, U512};
 use crate::fields::FieldElement;
 use alloc::vec::Vec;
+use bytemuck::{AnyBitPattern, NoUninit};
 use core::ops::{Add, Mul, Neg, Sub};
 use rand::Rng;
 
 cfg_if::cfg_if! {
     if #[cfg(target_os = "zkvm")] {
-        use bytemuck::cast;
+        use bytemuck::{cast_ref, cast_mut, cast};
         use sp1_lib::io::{hint_slice, read_vec};
-        use core::{convert::TryInto, mem::transmute};
+        use core::{convert::TryInto};
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug, NoUninit, AnyBitPattern)]
 #[repr(C)]
 pub struct Fr(U256);
 
@@ -186,13 +187,13 @@ impl FieldElement for Fr {
         {
             sp1_lib::unconstrained! {
                 let mut buf = [0u8; 33];
-                let bytes = unsafe { transmute::<[u128; 2], [u8; 32]>(self.inverse().unwrap().0.0) };
+                let bytes = cast::<Fr, [u8; 32]>(self.inverse().unwrap()) ;
                 buf.copy_from_slice(bytes.as_slice());
                 hint_slice(&buf);
             }
 
             let bytes: [u8; 32] = sp1_lib::io::read_vec().try_into().unwrap();
-            let inv = unsafe { Fr(U256(transmute::<[u8; 32], [u128; 2]>(bytes))) };
+            let inv = Fr(U256(cast::<[u8; 32], [u128; 2]>(bytes)));
             Some(inv).filter(|inv| !self.is_zero() && self * *inv == Fr::one())
         }
 
@@ -265,7 +266,7 @@ impl Neg for Fr {
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug, NoUninit, AnyBitPattern)]
 #[repr(C)]
 pub struct Fq(pub U256);
 
@@ -447,9 +448,9 @@ impl Fq {
     pub(crate) fn add_inp(&mut self, other: &Fq) {
         #[cfg(target_os = "zkvm")]
         {
+            let mut lhs = cast_mut::<Fq, [u32; 8]>(self);
+            let rhs = cast_ref::<Fq, [u32; 8]>(&other);
             unsafe {
-                let mut lhs = transmute::<&mut [u128; 2], &mut [u32; 8]>(&mut self.0 .0);
-                let rhs = transmute::<&[u128; 2], &[u32; 8]>(&other.0 .0);
                 sp1_lib::syscall_bn254_fp_addmod(lhs.as_mut_ptr(), rhs.as_ptr());
             }
         }
@@ -463,9 +464,9 @@ impl Fq {
     pub(crate) fn sub_inp(&mut self, other: &Fq) {
         #[cfg(target_os = "zkvm")]
         {
+            let mut lhs = cast_mut::<Fq, [u32; 8]>(self);
+            let rhs = cast_ref::<Fq, [u32; 8]>(&other);
             unsafe {
-                let mut lhs = transmute::<&mut [u128; 2], &mut [u32; 8]>(&mut self.0 .0);
-                let rhs = transmute::<&[u128; 2], &[u32; 8]>(&other.0 .0);
                 sp1_lib::syscall_bn254_fp_submod(lhs.as_mut_ptr(), rhs.as_ptr());
             }
         }
@@ -479,9 +480,9 @@ impl Fq {
     pub(crate) fn mul_inp(&mut self, other: &Fq) {
         #[cfg(target_os = "zkvm")]
         {
+            let lhs = cast_mut::<Fq, [u32; 8]>(self);
+            let rhs = cast_ref::<Fq, [u32; 8]>(&other);
             unsafe {
-                let mut lhs = transmute::<&mut [u128; 2], &mut [u32; 8]>(&mut self.0 .0);
-                let rhs = transmute::<&[u128; 2], &[u32; 8]>(&other.0 .0);
                 sp1_lib::syscall_bn254_fp_mulmod(lhs.as_mut_ptr(), rhs.as_ptr());
             }
         }
@@ -533,7 +534,7 @@ impl FieldElement for Fq {
             }
 
             let bytes: [u8; 32] = sp1_lib::io::read_vec().try_into().unwrap();
-            let inv = unsafe { Fq(U256(cast::<[u8; 32], [u128; 2]>(bytes))) };
+            let inv = Fq(U256(cast::<[u8; 32], [u128; 2]>(bytes)));
             Some(inv).filter(|inv| !self.is_zero() && self * *inv == Fq::one())
         }
 
@@ -657,7 +658,7 @@ impl Fq {
             sp1_lib::unconstrained! {
                 let mut buf = [0u8; 33];
                 cpu_sqrt(self).map(|sqrt| {
-                    let bytes = unsafe { cast::<[u128; 2], [u8; 32]>(sqrt.0.0) };
+                    let bytes = cast::<[u128; 2], [u8; 32]>(sqrt.0.0);
                     buf[0..32].copy_from_slice(&bytes);
                     buf[32] = 1;
                 });

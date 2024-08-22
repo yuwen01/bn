@@ -1,3 +1,4 @@
+use bytemuck::{AnyBitPattern, NoUninit};
 use core::cmp::Ordering;
 use crunchy::unroll;
 use rand::Rng;
@@ -6,7 +7,7 @@ use byteorder::{BigEndian, ByteOrder};
 
 /// 256-bit, stack allocated biginteger for use in prime field
 /// arithmetic.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, NoUninit, AnyBitPattern)]
 #[repr(C)]
 pub struct U256(pub [u128; 2]);
 
