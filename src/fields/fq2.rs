@@ -24,8 +24,11 @@ fn fq_non_residue() -> Fq {
 }
 
 #[inline]
-pub fn fq2_nonresidue() -> Fq2 {
-    Fq2::new(const_fq([9, 0, 0, 0]), const_fq([1, 0, 0, 0]))
+pub const fn fq2_nonresidue() -> Fq2 {
+    Fq2::new(
+        Fq::from_raw_unchecked(U256::from_raw_unchecked([9, 0])),
+        Fq::from_raw_unchecked(U256::from_raw_unchecked([1, 0])),
+    )
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -36,7 +39,7 @@ pub struct Fq2 {
 }
 
 impl Fq2 {
-    pub fn new(c0: Fq, c1: Fq) -> Self {
+    pub const fn new(c0: Fq, c1: Fq) -> Self {
         Fq2 { c0: c0, c1: c1 }
     }
 
@@ -47,8 +50,18 @@ impl Fq2 {
         }
     }
 
+    #[inline]
     pub fn mul_by_nonresidue(&self) -> Self {
-        *self * fq2_nonresidue()
+        #[cfg(target_os = "zkvm")]
+        {
+            let mut res = *self;
+            res.mul_inp(&fq2_nonresidue());
+            res
+        }
+        #[cfg(not(target_os = "zkvm"))]
+        {
+            *self * fq2_nonresidue()
+        }
     }
 
     pub fn frobenius_map(&self, power: usize) -> Self {
@@ -70,34 +83,121 @@ impl Fq2 {
         &self.c1
     }
 
-    fn _add(self, other: Fq2) -> Fq2 {
+    fn cpu_add(self, other: Fq2) -> Fq2 {
         Fq2 {
-            c0: self.c0._add(other.c0),
-            c1: self.c1._add(other.c1),
+            c0: self.c0.cpu_add(other.c0),
+            c1: self.c1.cpu_add(other.c1),
         }
     }
 
-    fn _mul(self, other: Fq2) -> Fq2 {
+    fn cpu_mul(self, other: Fq2) -> Fq2 {
         // Devegili OhEig Scott Dahab
         //     Multiplication and Squaring on Pairing-Friendly Fields.pdf
         //     Section 3 (Karatsuba)
 
-        let aa = self.c0._mul(other.c0);
-        let bb = self.c1._mul(other.c1);
+        let aa = self.c0.cpu_mul(other.c0);
+        let bb = self.c1.cpu_mul(other.c1);
 
         Fq2 {
-            c0: bb._mul(fq_non_residue())._add(aa),
-            c1: (self.c0._add(self.c1))
-                ._mul(other.c0._add(other.c1))
-                ._sub(aa)
-                ._sub(bb),
+            c0: bb.cpu_mul(fq_non_residue()).cpu_add(aa),
+            c1: (self.c0.cpu_add(self.c1))
+                .cpu_mul(other.c0.cpu_add(other.c1))
+                .cpu_sub(aa)
+                .cpu_sub(bb),
         }
     }
 
-    fn _neg(self) -> Fq2 {
+    fn cpu_sub(self, other: Fq2) -> Fq2 {
         Fq2 {
-            c0: self.c0._neg(),
-            c1: self.c1._neg(),
+            c0: self.c0.cpu_sub(other.c0),
+            c1: self.c1.cpu_sub(other.c1),
+        }
+    }
+
+    fn cpu_neg(self) -> Fq2 {
+        Fq2 {
+            c0: self.c0.cpu_neg(),
+            c1: self.c1.cpu_neg(),
+        }
+    }
+
+    #[inline]
+    pub(crate) fn add_inp(&mut self, other: &Fq2) {
+        #[cfg(target_os = "zkvm")]
+        {
+            unsafe {
+                let mut lhs = transmute::<&mut Fq2, &mut [u32; 16]>(self);
+                let rhs = transmute::<&Fq2, &[u32; 8]>(&other);
+                sp1_lib::syscall_bn254_fp2_addmod(lhs.as_mut_ptr(), rhs.as_ptr());
+            }
+        }
+        #[cfg(not(target_os = "zkvm"))]
+        {
+            *self = self.cpu_add(*other);
+        }
+    }
+
+    #[inline]
+    pub(crate) fn sub_inp(&mut self, other: &Fq2) {
+        #[cfg(target_os = "zkvm")]
+        {
+            unsafe {
+                let mut lhs = transmute::<&mut Fq2, &mut [u32; 16]>(self);
+                let rhs = transmute::<&Fq2, &[u32; 8]>(&other);
+                sp1_lib::syscall_bn254_fp2_submod(lhs.as_mut_ptr(), rhs.as_ptr());
+            }
+        }
+        #[cfg(not(target_os = "zkvm"))]
+        {
+            *self = self.cpu_sub(*other);
+        }
+    }
+
+    #[inline]
+    pub(crate) fn mul_inp(&mut self, other: &Fq2) {
+        #[cfg(target_os = "zkvm")]
+        {
+            unsafe {
+                let mut lhs = transmute::<&mut Fq2, &mut [u32; 16]>(self);
+                let rhs = transmute::<&Fq2, &[u32; 8]>(&other);
+                sp1_lib::syscall_bn254_fp2_mulmod(lhs.as_mut_ptr(), rhs.as_ptr());
+            }
+        }
+        #[cfg(not(target_os = "zkvm"))]
+        {
+            *self = self.cpu_mul(*other);
+        }
+    }
+
+    #[inline]
+    pub fn square_inp(&mut self) {
+        #[cfg(target_os = "zkvm")]
+        {
+            unsafe {
+                let mut lhs = transmute::<&mut Fq2, &mut [u32; 16]>(self);
+                let rhs = transmute::<&Fq2, &[u32; 8]>(self);
+                sp1_lib::syscall_bn254_fp2_mulmod(lhs.as_mut_ptr(), rhs.as_ptr());
+            }
+        }
+        #[cfg(not(target_os = "zkvm"))]
+        {
+            *self = self.cpu_mul(*self);
+        }
+    }
+
+    #[inline]
+    pub fn double_inp(&mut self) {
+        #[cfg(target_os = "zkvm")]
+        {
+            unsafe {
+                let mut lhs = transmute::<&mut Fq2, &mut [u32; 16]>(self);
+                let rhs = transmute::<&Fq2, &[u32; 8]>(self);
+                sp1_lib::syscall_bn254_fp2_addmod(lhs.as_mut_ptr(), rhs.as_ptr());
+            }
+        }
+        #[cfg(not(target_os = "zkvm"))]
+        {
+            *self = self.cpu_add(*self);
         }
     }
 }
@@ -133,7 +233,9 @@ impl FieldElement for Fq2 {
         //     Multiplication and Squaring on Pairing-Friendly Fields.pdf
         //     Section 3 (Complex squaring)
 
-        *self * *self
+        let mut out = *self;
+        out.square_inp();
+        out
     }
 
     fn inverse(self) -> Option<Self> {
@@ -142,13 +244,13 @@ impl FieldElement for Fq2 {
 
         match (self
             .c0
-            ._mul(self.c0)
-            ._sub((self.c1._mul(self.c1))._mul(fq_non_residue())))
+            .cpu_mul(self.c0)
+            .cpu_sub((self.c1.cpu_mul(self.c1)).cpu_mul(fq_non_residue())))
         .inverse()
         {
             Some(t) => Some(Fq2 {
-                c0: self.c0._mul(t),
-                c1: (self.c1._mul(t))._neg(),
+                c0: self.c0.cpu_mul(t),
+                c1: (self.c1.cpu_mul(t)).cpu_neg(),
             }),
             None => None,
         }
@@ -188,15 +290,11 @@ impl FieldElement for Fq2 {
 impl Mul for Fq2 {
     type Output = Fq2;
 
-    fn mul(self, other: Fq2) -> Fq2 {
+    fn mul(mut self, other: Fq2) -> Fq2 {
         #[cfg(target_os = "zkvm")]
         {
-            unsafe {
-                let mut lhs = transmute::<Fq2, [u32; 16]>(self);
-                let rhs = transmute::<&Fq2, &[u32; 16]>(&other);
-                sp1_lib::syscall_bn254_fp2_mulmod(lhs.as_mut_ptr(), rhs.as_ptr());
-                transmute::<[u32; 16], Fq2>(lhs)
-            }
+            self.mul_inp(&other);
+            self
         }
         #[cfg(not(target_os = "zkvm"))]
         {
@@ -272,21 +370,21 @@ impl Fq2 {
         Fq2::new(Fq::zero(), Fq::one())
     }
 
-    fn _sqrt(&self) -> Option<Self> {
+    fn cpu_sqrt(&self) -> Option<Self> {
         let a1 = self.pow::<U256>((*FQ_MINUS3_DIV4).into());
-        let a1a = a1._mul(*self);
-        let alpha = a1._mul(a1a);
-        let a0 = alpha.pow(*FQ)._mul(alpha);
+        let a1a = a1.cpu_mul(*self);
+        let alpha = a1.cpu_mul(a1a);
+        let a0 = alpha.pow(*FQ).cpu_mul(alpha);
 
-        if a0 == Fq2::one()._neg() {
+        if a0 == Fq2::one().cpu_neg() {
             return None;
         }
 
-        if alpha == Fq2::one()._neg() {
-            Some(Self::i()._mul(a1a))
+        if alpha == Fq2::one().cpu_neg() {
+            Some(Self::i().cpu_mul(a1a))
         } else {
-            let b = (alpha._add(Fq2::one())).pow::<U256>((*FQ_MINUS1_DIV2).into());
-            Some(b._mul(a1a))
+            let b = (alpha.cpu_add(Fq2::one())).pow::<U256>((*FQ_MINUS1_DIV2).into());
+            Some(b.cpu_mul(a1a))
         }
     }
 
@@ -296,7 +394,7 @@ impl Fq2 {
             // Compute the square root using the zkvm syscall
             sp1_lib::unconstrained! {
                 let mut buf = [0u8; 65];
-                self._sqrt().map(|sqrt| {
+                self.cpu_sqrt().map(|sqrt| {
                     let bytes = unsafe { transmute::<[u128; 4], [u8; 64]>(sqrt.to_u512().0) };
                     buf[0..64].copy_from_slice(&bytes);
                     buf[64] = 1;
@@ -316,7 +414,7 @@ impl Fq2 {
         }
         #[cfg(not(target_os = "zkvm"))]
         {
-            self._sqrt()
+            self.cpu_sqrt()
         }
     }
 
