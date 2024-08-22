@@ -129,66 +129,101 @@ impl Fq12 {
     }
 
     pub fn mul_by_024(&self, ell_0: Fq2, ell_vw: Fq2, ell_vv: Fq2) -> Fq12 {
-        let z0 = self.c0.c0;
-        let z1 = self.c0.c1;
-        let z2 = self.c0.c2;
-        let z3 = self.c1.c0;
-        let z4 = self.c1.c1;
-        let z5 = self.c1.c2;
-
+        let mut z0 = self.c0.c0;
+        let mut z1 = self.c0.c1;
+        let mut z2 = self.c0.c2;
+        let mut z3 = self.c1.c0;
+        let mut z4 = self.c1.c1;
+        let mut z5 = self.c1.c2;
         let x0 = ell_0;
         let x2 = ell_vv;
         let x4 = ell_vw;
 
-        let d0 = z0 * x0;
-        let d2 = z2 * x2;
-        let d4 = z4 * x4;
-        let t2 = z0 + z4;
-        let t1 = z0 + z2;
-        let s0 = z1 + z3 + z5;
+        let mut d0 = z0;
+        d0.mul_inp(&x0);
+        let mut d2 = z2;
+        d2.mul_inp(&x2);
+        let mut d4 = z4;
+        d4.mul_inp(&x4);
 
-        let s1 = z1 * x2;
-        let t3 = s1 + d4;
-        let t4 = t3.mul_by_nonresidue() + d0;
-        let z0 = t4;
+        let mut t2 = z0;
+        t2.add_inp(&z4);
+        let mut t1 = z0;
+        t1.add_inp(&z2);
+        let mut s0 = z1;
+        s0.add_inp(&z3);
+        s0.add_inp(&z5);
 
-        let t3 = z5 * x4;
-        let s1 = s1 + t3;
-        let t3 = t3 + d2;
-        let t4 = t3.mul_by_nonresidue();
-        let t3 = z1 * x0;
-        let s1 = s1 + t3;
-        let t4 = t4 + t3;
-        let z1 = t4;
+        let mut s1 = z1;
+        s1.mul_inp(&x2);
+        let mut t3 = s1;
+        t3.add_inp(&d4);
+        let mut t4 = t3;
+        t4.mul_by_nonresidue_inp();
+        t4.add_inp(&d0);
+        z0 = t4;
 
-        let t0 = x0 + x2;
-        let t3 = t1 * t0 - d0 - d2;
-        let t4 = z3 * x4;
-        let s1 = s1 + t4;
-        let t3 = t3 + t4;
+        let mut t3 = z5;
+        t3.mul_inp(&x4);
+        s1.add_inp(&t3);
+        t3.add_inp(&d2);
+        t4 = t3;
+        t4.mul_by_nonresidue_inp();
+        t3 = z1;
+        t3.mul_inp(&x0);
+        s1.add_inp(&t3);
+        t4.add_inp(&t3);
+        z1 = t4;
 
-        let t0 = z2 + z4;
-        let z2 = t3;
+        let mut t0 = x0;
+        t0.add_inp(&x2);
+        t3 = t1;
+        t3.mul_inp(&t0);
+        t3.sub_inp(&d0);
+        t3.sub_inp(&d2);
+        t4 = z3;
+        t4.mul_inp(&x4);
+        s1.add_inp(&t4);
+        t3.add_inp(&t4);
+        t0 = z2;
+        t0.add_inp(&z4);
+        z2 = t3;
 
-        let t1 = x2 + x4;
-        let t3 = t0 * t1 - d2 - d4;
-        let t4 = t3.mul_by_nonresidue();
-        let t3 = z3 * x0;
-        let s1 = s1 + t3;
-        let t4 = t4 + t3;
-        let z3 = t4;
+        let mut t1 = x2;
+        t1.add_inp(&x4);
+        t3 = t0;
+        t3.mul_inp(&t1);
+        t3.sub_inp(&d2);
+        t3.sub_inp(&d4);
+        t4 = t3;
+        t4.mul_by_nonresidue_inp();
+        t3 = z3;
+        t3.mul_inp(&x0);
+        s1.add_inp(&t3);
+        t4.add_inp(&t3);
+        z3 = t4;
 
-        let t3 = z5 * x2;
-        let s1 = s1 + t3;
-        let t4 = t3.mul_by_nonresidue();
-        let t0 = x0 + x4;
-        let t3 = t2 * t0 - d0 - d4;
-        let t4 = t4 + t3;
-        let z4 = t4;
+        t3 = z5;
+        t3.mul_inp(&x2);
+        s1.add_inp(&t3);
+        t4 = t3;
+        t4.mul_by_nonresidue_inp();
+        t0 = x0;
+        t0.add_inp(&x4);
+        t3 = t2;
+        t3.mul_inp(&t0);
+        t3.sub_inp(&d0);
+        t3.sub_inp(&d4);
+        t4.add_inp(&t3);
+        z4 = t4;
 
-        let t0 = x0 + x2 + x4;
-        let t3 = s0 * t0 - s1;
-        let z5 = t3;
+        t0 = x0;
+        t0.add_inp(&x2);
+        t0.add_inp(&x4);
+        t3 = s0;
+        t3.mul_inp(&t0);
+        t3.sub_inp(&s1);
+        z5 = t3;
 
         Fq12 {
             c0: Fq6::new(z0, z1, z2),
@@ -204,46 +239,79 @@ impl Fq12 {
         let z1 = self.c1.c1;
         let z5 = self.c1.c2;
 
-        let tmp = z0 * z1;
-        let t0 = (z0 + z1) * (z1.mul_by_nonresidue() + z0) - tmp - tmp.mul_by_nonresidue();
-        let t1 = tmp + tmp;
+        let mut tmp = z0;
+        tmp.mul_inp(&z1);
+        let mut t0 = z0;
+        t0.add_inp(&z1);
+        let mut t1 = z1;
+        t1.mul_by_nonresidue_inp();
+        t1.add_inp(&z0);
+        t0.mul_inp(&t1);
+        t0.sub_inp(&tmp);
+        t0.sub_inp(&tmp.mul_by_nonresidue());
+        let mut t1 = tmp;
+        t1.double_inp();
 
-        let tmp = z2 * z3;
-        let t2 = (z2 + z3) * (z3.mul_by_nonresidue() + z2) - tmp - tmp.mul_by_nonresidue();
-        let t3 = tmp + tmp;
+        let mut tmp = z2;
+        tmp.mul_inp(&z3);
+        let mut t2 = z2;
+        t2.add_inp(&z3);
+        let mut t3 = z3;
+        t3.mul_by_nonresidue_inp();
+        t3.add_inp(&z2);
+        t2.mul_inp(&t3);
+        t2.sub_inp(&tmp);
+        t2.sub_inp(&tmp.mul_by_nonresidue());
+        let mut t3 = tmp;
+        t3.double_inp();
 
-        let tmp = z4 * z5;
-        let t4 = (z4 + z5) * (z5.mul_by_nonresidue() + z4) - tmp - tmp.mul_by_nonresidue();
-        let t5 = tmp + tmp;
+        let mut tmp = z4;
+        tmp.mul_inp(&z5);
+        let mut t4 = z4;
+        t4.add_inp(&z5);
+        let mut t5 = z5;
+        t5.mul_by_nonresidue_inp();
+        t5.add_inp(&z4);
+        t4.mul_inp(&t5);
+        t4.sub_inp(&tmp);
+        t4.sub_inp(&tmp.mul_by_nonresidue());
+        let mut t5 = tmp;
+        t5.double_inp();
 
-        let z0 = t0 - z0;
-        let z0 = z0 + z0;
-        let z0 = z0 + t0;
+        let mut new_z0 = t0;
+        new_z0.sub_inp(&z0);
+        new_z0.double_inp();
+        new_z0.add_inp(&t0);
 
-        let z1 = t1 + z1;
-        let z1 = z1 + z1;
-        let z1 = z1 + t1;
+        let mut new_z1 = t1;
+        new_z1.add_inp(&z1);
+        new_z1.double_inp();
+        new_z1.add_inp(&t1);
 
-        let tmp = t5.mul_by_nonresidue();
-        let z2 = tmp + z2;
-        let z2 = z2 + z2;
-        let z2 = z2 + tmp;
+        let mut new_z2 = t5;
+        new_z2.mul_by_nonresidue_inp();
+        new_z2.add_inp(&z2);
+        new_z2.double_inp();
+        new_z2.add_inp(&t5.mul_by_nonresidue());
 
-        let z3 = t4 - z3;
-        let z3 = z3 + z3;
-        let z3 = z3 + t4;
+        let mut new_z3 = t4;
+        new_z3.sub_inp(&z3);
+        new_z3.double_inp();
+        new_z3.add_inp(&t4);
 
-        let z4 = t2 - z4;
-        let z4 = z4 + z4;
-        let z4 = z4 + t2;
+        let mut new_z4 = t2;
+        new_z4.sub_inp(&z4);
+        new_z4.double_inp();
+        new_z4.add_inp(&t2);
 
-        let z5 = t3 + z5;
-        let z5 = z5 + z5;
-        let z5 = z5 + t3;
+        let mut new_z5 = t3;
+        new_z5.add_inp(&z5);
+        new_z5.double_inp();
+        new_z5.add_inp(&t3);
 
         Fq12 {
-            c0: Fq6::new(z0, z4, z3),
-            c1: Fq6::new(z2, z1, z5),
+            c0: Fq6::new(new_z0, new_z4, new_z3),
+            c1: Fq6::new(new_z2, new_z1, new_z5),
         }
     }
 

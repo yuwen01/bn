@@ -1,3 +1,4 @@
+use bytemuck::{AnyBitPattern, NoUninit};
 use core::cmp::Ordering;
 use crunchy::unroll;
 use rand::Rng;
@@ -6,7 +7,7 @@ use byteorder::{BigEndian, ByteOrder};
 
 /// 256-bit, stack allocated biginteger for use in prime field
 /// arithmetic.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, NoUninit, AnyBitPattern)]
 #[repr(C)]
 pub struct U256(pub [u128; 2]);
 
@@ -299,12 +300,14 @@ impl U256 {
     pub fn mul(&mut self, other: &U256, modulo: &U256) {
         #[cfg(target_os = "zkvm")]
         {
-            let mod_ptr: *const [u32; 8] = (&modulo.0) as *const [u128; 2] as *const [u32; 8];
-            let x_ptr: *const [u32; 8] = (&self.0) as *const [u128; 2] as *const [u32; 8];
-            let y_ptr: *const [u32; 8] = (&other.0) as *const [u128; 2] as *const [u32; 8];
-            let res_ptr: *mut [u32; 8] = (&mut self.0) as *mut [u128; 2] as *mut [u32; 8];
             unsafe {
-                sp1_lib::sys_bigint(res_ptr, 0, x_ptr, y_ptr, mod_ptr);
+                sp1_lib::sys_bigint(
+                    (&mut self.0) as *mut [u128; 2] as *mut [u32; 8],
+                    0,
+                    (&self.0) as *const [u128; 2] as *const [u32; 8],
+                    (&other.0) as *const [u128; 2] as *const [u32; 8],
+                    (&modulo.0) as *const [u128; 2] as *const [u32; 8],
+                );
             }
         }
         #[cfg(not(target_os = "zkvm"))]
@@ -390,6 +393,10 @@ impl U256 {
     /// MSB to LSB.
     pub fn bits(&self) -> BitIterator {
         BitIterator { int: &self, n: 256 }
+    }
+
+    pub const fn from_raw_unchecked(v: [u128; 2]) -> Self {
+        U256(v)
     }
 }
 

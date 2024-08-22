@@ -8,6 +8,7 @@ use core::{
     ops::{Add, Mul, Neg, Sub},
 };
 use rand::Rng;
+use sp1_lib::syscall_bn254_add;
 
 // This is the NAF version of ate_loop_count. Entries are all mod 4, so 3 = -1
 // n.b. ate_loop_count = 0x19d797039be763ba8
