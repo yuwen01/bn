@@ -179,11 +179,11 @@ impl FieldElement for Fq6 {
         s4.square_inp();
 
         let mut c0 = s3;
-        c0.mul_by_nonresidue();
+        c0.mul_by_nonresidue_inp();
         c0.add_inp(&s0);
 
         let mut c1 = s4;
-        c1.mul_by_nonresidue();
+        c1.mul_by_nonresidue_inp();
         c1.add_inp(&s1);
 
         let mut c2 = s1;
@@ -200,12 +200,12 @@ impl FieldElement for Fq6 {
         c0.square_inp();
         let mut temp = self.c1;
         temp.mul_inp(&self.c2);
-        temp.mul_by_nonresidue();
+        temp.mul_by_nonresidue_inp();
         c0.sub_inp(&temp);
 
         let mut c1 = self.c2;
         c1.square_inp();
-        c1.mul_by_nonresidue();
+        c1.mul_by_nonresidue_inp();
         let mut temp = self.c0;
         temp.mul_inp(&self.c1);
         c1.sub_inp(&temp);
@@ -221,7 +221,7 @@ impl FieldElement for Fq6 {
         let mut temp2 = self.c1;
         temp2.mul_inp(&c2);
         temp1.add_inp(&temp2);
-        temp1.mul_by_nonresidue();
+        temp1.mul_by_nonresidue_inp();
         let mut temp3 = self.c0;
         temp3.mul_inp(&c0);
         temp1.add_inp(&temp3);
@@ -270,7 +270,7 @@ impl Mul for Fq6 {
         c0.mul_inp(&temp2);
         c0.sub_inp(&b_b);
         c0.sub_inp(&c_c);
-        c0.mul_by_nonresidue();
+        c0.mul_by_nonresidue_inp();
         c0.add_inp(&a_a);
 
         let mut temp1 = self.c0;
@@ -282,7 +282,7 @@ impl Mul for Fq6 {
         c1.sub_inp(&a_a);
         c1.sub_inp(&b_b);
         let mut temp3 = c_c;
-        temp3.mul_by_nonresidue();
+        temp3.mul_by_nonresidue_inp();
         c1.add_inp(&temp3);
 
         let mut temp1 = self.c0;

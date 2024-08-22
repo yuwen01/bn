@@ -51,6 +51,20 @@ impl Fq2 {
     }
 
     #[inline]
+    pub fn mul_by_nonresidue_inp(&mut self) {
+        #[cfg(target_os = "zkvm")]
+        {
+            unsafe {
+                self.mul_inp(&fq2_nonresidue());
+            }
+        }
+        #[cfg(not(target_os = "zkvm"))]
+        {
+            *self = *self * fq2_nonresidue();
+        }
+    }
+
+    #[inline]
     pub fn mul_by_nonresidue(&self) -> Self {
         #[cfg(target_os = "zkvm")]
         {
