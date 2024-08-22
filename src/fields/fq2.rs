@@ -40,7 +40,7 @@ pub struct Fq2 {
 
 impl Fq2 {
     pub const fn new(c0: Fq, c1: Fq) -> Self {
-        Fq2 { c0: c0, c1: c1 }
+        Fq2 { c0, c1 }
     }
 
     pub fn scale(&self, by: Fq) -> Self {
