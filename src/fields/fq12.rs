@@ -56,7 +56,7 @@ pub struct Fq12 {
 
 impl Fq12 {
     pub fn new(c0: Fq6, c1: Fq6) -> Self {
-        Fq12 { c0: c0, c1: c1 }
+        Fq12 { c0, c1 }
     }
 
     fn final_exponentiation_first_chunk(&self) -> Option<Fq12> {
@@ -99,9 +99,8 @@ impl Fq12 {
         let s = self.unitary_inverse();
         let t = s * l;
         let u = t.frobenius_map(3);
-        let v = u * r;
 
-        v
+        u * r
     }
 
     pub fn final_exponentiation(&self) -> Option<Fq12> {
@@ -373,13 +372,12 @@ impl FieldElement for Fq12 {
     }
 
     fn inverse(self) -> Option<Self> {
-        match (self.c0.squared() - (self.c1.squared().mul_by_nonresidue())).inverse() {
-            Some(t) => Some(Fq12 {
+        (self.c0.squared() - (self.c1.squared().mul_by_nonresidue()))
+            .inverse()
+            .map(|t| Fq12 {
                 c0: self.c0 * t,
                 c1: -(self.c1 * t),
-            }),
-            None => None,
-        }
+            })
     }
 
     fn inverse_unconstrained(self) -> Option<Self> {

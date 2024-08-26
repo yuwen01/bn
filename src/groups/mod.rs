@@ -8,8 +8,6 @@ use core::{
     ops::{Add, Mul, Neg, Sub},
 };
 use rand::Rng;
-use sp1_lib::syscall_bn254_add;
-
 // This is the NAF version of ate_loop_count. Entries are all mod 4, so 3 = -1
 // n.b. ate_loop_count = 0x19d797039be763ba8
 //                     = 11001110101111001011100000011100110111110011101100011101110101000
@@ -59,7 +57,7 @@ pub struct G<P: GroupParams> {
 
 impl<P: GroupParams> G<P> {
     pub fn new(x: P::Base, y: P::Base, z: P::Base) -> Self {
-        G { x: x, y: y, z: z }
+        G { x, y, z }
     }
 
     pub fn x(&self) -> &P::Base {
@@ -104,8 +102,8 @@ impl<P: GroupParams> AffineG<P> {
         if y.squared() == (x.squared() * x) + P::coeff_b() {
             if P::check_order() {
                 let p: G<P> = G {
-                    x: x,
-                    y: y,
+                    x,
+                    y,
                     z: P::Base::one(),
                 };
 
@@ -114,7 +112,7 @@ impl<P: GroupParams> AffineG<P> {
                 }
             }
 
-            Ok(AffineG { x: x, y: y })
+            Ok(AffineG { x, y })
         } else {
             Err(Error::NotOnCurve)
         }
@@ -153,11 +151,7 @@ impl<P: GroupParams> fmt::Debug for G<P> {
 
 impl<P: GroupParams> Clone for G<P> {
     fn clone(&self) -> Self {
-        G {
-            x: self.x,
-            y: self.y,
-            z: self.z,
-        }
+        *self
     }
 }
 
@@ -165,10 +159,7 @@ impl<P: GroupParams> Copy for G<P> {}
 
 impl<P: GroupParams> Clone for AffineG<P> {
     fn clone(&self) -> Self {
-        AffineG {
-            x: self.x,
-            y: self.y,
-        }
+        *self
     }
 }
 
@@ -198,13 +189,13 @@ impl<P: GroupParams> PartialEq for G<P> {
             return false;
         }
 
-        return true;
+        true
     }
 }
 impl<P: GroupParams> Eq for G<P> {}
 
 impl<P: GroupParams> G<P> {
-    pub fn to_affine(&self) -> Option<AffineG<P>> {
+    pub fn to_affine(self) -> Option<AffineG<P>> {
         if self.z.is_zero() {
             None
         } else if self.z == P::Base::one() {
@@ -225,7 +216,7 @@ impl<P: GroupParams> G<P> {
 }
 
 impl<P: GroupParams> AffineG<P> {
-    pub fn to_jacobian(&self) -> G<P> {
+    pub fn to_jacobian(self) -> G<P> {
         G {
             x: self.x,
             y: self.y,
@@ -289,6 +280,7 @@ impl<P: GroupParams> Mul<Fr> for G<P> {
                 res = res.double();
             }
 
+            #[allow(clippy::suspicious_arithmetic_impl)]
             if i {
                 found_one = true;
                 res = res + self;
@@ -605,7 +597,7 @@ impl G2Precomp {
     }
 }
 
-pub fn miller_loop_batch(g2_precomputes: &Vec<G2Precomp>, g1_vec: &Vec<AffineG<G1Params>>) -> Fq12 {
+pub fn miller_loop_batch(g2_precomputes: &[G2Precomp], g1_vec: &[AffineG<G1Params>]) -> Fq12 {
     let mut f = Fq12::one();
 
     let mut idx = 0;
@@ -769,10 +761,7 @@ impl AffineG<G2Params> {
         coeffs.push(r.mixed_addition_step_for_flipped_miller_loop(&q1));
         coeffs.push(r.mixed_addition_step_for_flipped_miller_loop(&q2));
 
-        G2Precomp {
-            q: *self,
-            coeffs: coeffs,
-        }
+        G2Precomp { q: *self, coeffs }
     }
 }
 
@@ -4190,7 +4179,7 @@ pub fn pairing(p: &G1, q: &G2) -> Fq12 {
 pub fn pairing_batch(ps: &[G1], qs: &[G2]) -> Fq12 {
     let mut p_affines: Vec<AffineG<G1Params>> = Vec::new();
     let mut q_precomputes: Vec<G2Precomp> = Vec::new();
-    for (p, q) in ps.into_iter().zip(qs.into_iter()) {
+    for (p, q) in ps.iter().zip(qs.iter()) {
         let p_affine = p.to_affine();
         let q_affine = q.to_affine();
         let exists = match (p_affine, q_affine) {
@@ -4203,7 +4192,7 @@ pub fn pairing_batch(ps: &[G1], qs: &[G2]) -> Fq12 {
             q_precomputes.push(q.to_affine().unwrap().precompute());
         }
     }
-    if q_precomputes.len() == 0 {
+    if q_precomputes.is_empty() {
         return Fq12::one();
     }
     miller_loop_batch(&q_precomputes, &p_affines)

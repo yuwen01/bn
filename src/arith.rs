@@ -152,14 +152,14 @@ impl Ord for U512 {
     #[inline]
     fn cmp(&self, other: &U512) -> Ordering {
         for (a, b) in self.0.iter().zip(other.0.iter()).rev() {
-            if *a < *b {
-                return Ordering::Less;
-            } else if *a > *b {
-                return Ordering::Greater;
+            match a.cmp(b) {
+                Ordering::Less => return Ordering::Less,
+                Ordering::Greater => return Ordering::Greater,
+                _ => {}
             }
         }
 
-        return Ordering::Equal;
+        Ordering::Equal
     }
 }
 
@@ -174,14 +174,13 @@ impl Ord for U256 {
     #[inline]
     fn cmp(&self, other: &U256) -> Ordering {
         for (a, b) in self.0.iter().zip(other.0.iter()).rev() {
-            if *a < *b {
-                return Ordering::Less;
-            } else if *a > *b {
-                return Ordering::Greater;
+            match a.cmp(b) {
+                Ordering::Less => return Ordering::Less,
+                Ordering::Greater => return Ordering::Greater,
+                _ => {}
             }
         }
-
-        return Ordering::Equal;
+        Ordering::Equal
     }
 }
 
@@ -392,7 +391,7 @@ impl U256 {
     /// Return an Iterator<Item=bool> over all bits from
     /// MSB to LSB.
     pub fn bits(&self) -> BitIterator {
-        BitIterator { int: &self, n: 256 }
+        BitIterator { int: self, n: 256 }
     }
 
     pub const fn from_raw_unchecked(v: [u128; 2]) -> Self {
@@ -462,7 +461,7 @@ fn adc(a: u128, b: u128, carry: &mut u128) -> u128 {
 fn add_nocarry(a: &mut [u128; 2], b: &[u128; 2]) {
     let mut carry = 0;
 
-    for (a, b) in a.into_iter().zip(b.iter()) {
+    for (a, b) in a.iter_mut().zip(b.iter()) {
         *a = adc(*a, *b, &mut carry);
     }
 
@@ -485,7 +484,7 @@ fn sub_noborrow(a: &mut [u128; 2], b: &[u128; 2]) {
 
     let mut borrow = 0;
 
-    for (a, b) in a.into_iter().zip(b.iter()) {
+    for (a, b) in a.iter_mut().zip(b.iter()) {
         *a = sbb(*a, *b, &mut borrow);
     }
 

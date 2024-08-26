@@ -30,11 +30,12 @@ impl Fr {
     pub fn pow(&self, exp: Fr) -> Self {
         Fr(self.0.pow(exp.0))
     }
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Option<Self> {
-        fields::Fr::from_str(s).map(|e| Fr(e))
+        fields::Fr::from_str(s).map(Fr)
     }
     pub fn inverse(&self) -> Option<Self> {
-        self.0.inverse_unconstrained().map(|e| Fr(e))
+        self.0.inverse_unconstrained().map(Fr)
     }
     pub fn is_zero(&self) -> bool {
         self.0.is_zero()
@@ -45,7 +46,7 @@ impl Fr {
     pub fn from_slice(slice: &[u8]) -> Result<Self, FieldError> {
         arith::U256::from_slice(slice)
             .map_err(|_| FieldError::InvalidSliceLength) // todo: maybe more sensful error handling
-            .map(|x| Fr::new_mul_factor(x))
+            .map(Fr::new_mul_factor)
     }
     pub fn to_big_endian(&self, slice: &mut [u8]) -> Result<(), FieldError> {
         // NOTE: serialized in Montgomery form (as in the original bn crate)
@@ -55,7 +56,7 @@ impl Fr {
             .map_err(|_| FieldError::InvalidSliceLength)
     }
     pub fn new(val: arith::U256) -> Option<Self> {
-        fields::Fr::new(val).map(|x| Fr(x))
+        fields::Fr::new(val).map(Fr)
     }
     pub fn new_mul_factor(val: arith::U256) -> Self {
         Fr(fields::Fr::new_mul_factor(val))
@@ -140,11 +141,12 @@ impl Fq {
     pub fn pow(&self, exp: Fq) -> Self {
         Fq(self.0.pow(exp.0))
     }
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Option<Self> {
-        fields::Fq::from_str(s).map(|e| Fq(e))
+        fields::Fq::from_str(s).map(Fq)
     }
     pub fn inverse(&self) -> Option<Self> {
-        self.0.inverse_unconstrained().map(|e| Fq(e))
+        self.0.inverse_unconstrained().map(Fq)
     }
     pub fn is_zero(&self) -> bool {
         self.0.is_zero()
@@ -156,7 +158,7 @@ impl Fq {
         arith::U256::from_slice(slice)
             .map_err(|_| FieldError::InvalidSliceLength) // todo: maybe more sensful error handling
             .and_then(|x| fields::Fq::new(x).ok_or(FieldError::NotMember))
-            .map(|x| Fq(x))
+            .map(Fq)
     }
     pub fn to_big_endian(&self, slice: &mut [u8]) -> Result<(), FieldError> {
         let a: arith::U256 = self.0.into();
@@ -325,7 +327,7 @@ impl G1 {
     }
 
     pub fn x(&self) -> Fq {
-        Fq(self.0.x().clone())
+        Fq(*self.0.x())
     }
 
     pub fn set_x(&mut self, x: Fq) {
@@ -333,7 +335,7 @@ impl G1 {
     }
 
     pub fn y(&self) -> Fq {
-        Fq(self.0.y().clone())
+        Fq(*self.0.y())
     }
 
     pub fn set_y(&mut self, y: Fq) {
@@ -341,7 +343,7 @@ impl G1 {
     }
 
     pub fn z(&self) -> Fq {
-        Fq(self.0.z().clone())
+        Fq(*self.0.z())
     }
 
     pub fn set_z(&mut self, z: Fq) {
@@ -364,9 +366,9 @@ impl G1 {
 
         let mut y = y_squared.sqrt().ok_or(CurveError::NotMember)?;
 
-        if sign == 2 && y.into_u256().get_bit(0).expect("bit 0 always exist; qed") {
-            y = y.neg();
-        } else if sign == 3 && !y.into_u256().get_bit(0).expect("bit 0 always exist; qed") {
+        if (sign == 2 && y.into_u256().get_bit(0).expect("bit 0 always exist; qed"))
+            || (sign == 3 && !y.into_u256().get_bit(0).expect("bit 0 always exist; qed"))
+        {
             y = y.neg();
         } else if sign != 3 && sign != 2 {
             return Err(CurveError::InvalidEncoding);
@@ -442,7 +444,7 @@ impl AffineG1 {
     }
 
     pub fn x(&self) -> Fq {
-        Fq(self.0.x().clone())
+        Fq(*self.0.x())
     }
 
     pub fn set_x(&mut self, x: Fq) {
@@ -450,7 +452,7 @@ impl AffineG1 {
     }
 
     pub fn y(&self) -> Fq {
-        Fq(self.0.y().clone())
+        Fq(*self.0.y())
     }
 
     pub fn set_y(&mut self, y: Fq) {
@@ -677,7 +679,7 @@ impl AffineG2 {
     }
 
     pub fn from_jacobian(g2: G2) -> Option<Self> {
-        g2.0.to_affine().map(|x| AffineG2(x))
+        g2.0.to_affine().map(AffineG2)
     }
 }
 

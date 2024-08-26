@@ -27,7 +27,7 @@ impl From<Fr> for U256 {
 impl Fr {
     #[inline]
     #[allow(dead_code)]
-    pub(crate) fn to_mont(&self) -> U256 {
+    pub(crate) fn to_mont(self) -> U256 {
         let mut res = self.0;
         res.mul(
             &U256::from([
@@ -230,6 +230,7 @@ impl Mul for Fr {
     type Output = Fr;
 
     #[inline]
+    #[allow(unused_mut)]
     fn mul(mut self, other: Fr) -> Fr {
         #[cfg(target_os = "zkvm")]
         {
@@ -295,7 +296,7 @@ impl PartialOrd for Fq {
 impl Fq {
     #[inline]
     #[allow(dead_code)]
-    pub(crate) fn to_mont(&self) -> U256 {
+    pub(crate) fn to_mont(self) -> U256 {
         let mut res = self.0;
         res.mul(
             &U256::from([
@@ -445,6 +446,7 @@ impl Fq {
     }
 
     #[inline]
+    #[allow(dead_code)]
     pub(crate) fn add_inp(&mut self, other: &Fq) {
         #[cfg(target_os = "zkvm")]
         {
@@ -461,6 +463,7 @@ impl Fq {
     }
 
     #[inline]
+    #[allow(dead_code)]
     pub(crate) fn sub_inp(&mut self, other: &Fq) {
         #[cfg(target_os = "zkvm")]
         {
@@ -477,6 +480,7 @@ impl Fq {
     }
 
     #[inline]
+    #[allow(dead_code)]
     pub(crate) fn mul_inp(&mut self, other: &Fq) {
         #[cfg(target_os = "zkvm")]
         {
@@ -549,6 +553,7 @@ impl Add for Fq {
     type Output = Fq;
 
     #[inline]
+    #[allow(unused_mut)]
     fn add(mut self, other: Fq) -> Fq {
         #[cfg(target_os = "zkvm")]
         {
@@ -566,6 +571,7 @@ impl Sub for Fq {
     type Output = Fq;
 
     #[inline]
+    #[allow(unused_mut)]
     fn sub(mut self, other: Fq) -> Fq {
         #[cfg(target_os = "zkvm")]
         {
@@ -601,6 +607,7 @@ impl Neg for Fq {
     type Output = Fq;
 
     #[inline]
+    #[allow(unused_mut)]
     fn neg(mut self) -> Fq {
         #[cfg(target_os = "zkvm")]
         {
@@ -644,7 +651,7 @@ impl Fq {
             let a1a = a1.cpu_mul(*f);
             let a0 = a1.cpu_mul(a1a);
             let mut am1 = *FQ;
-            am1.sub(&1.into(), &*FQ);
+            am1.sub(&1.into(), &FQ);
             if a0 == Fq::new(am1).unwrap() {
                 None
             } else {
