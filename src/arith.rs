@@ -230,6 +230,13 @@ impl U256 {
         Ok(())
     }
 
+    pub fn to_bytes_be(&self) -> [u8; 32] {
+        let mut s = [0u8; 32];
+        self.to_big_endian(&mut s)
+            .expect("Unable to serialize U256 to bytes");
+        s
+    }
+
     #[inline]
     pub fn zero() -> U256 {
         U256([0, 0])

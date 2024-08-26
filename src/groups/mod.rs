@@ -1,8 +1,9 @@
 use crate::arith::U256;
 use crate::fields::{const_fq, fq2_nonresidue, FieldElement, Fq, Fq12, Fq2, Fr};
-#[cfg(test)]
 use alloc::vec;
 use alloc::vec::Vec;
+use core::fmt::Display;
+use core::ops::AddAssign;
 use core::{
     fmt,
     ops::{Add, Mul, Neg, Sub},
@@ -85,7 +86,7 @@ impl<P: GroupParams> G<P> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct AffineG<P: GroupParams> {
     x: P::Base,
     y: P::Base,
@@ -95,6 +96,15 @@ pub struct AffineG<P: GroupParams> {
 pub enum Error {
     NotOnCurve,
     NotInSubgroup,
+}
+
+impl Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Error::NotOnCurve => write!(f, "Point is not on curve"),
+            Error::NotInSubgroup => write!(f, "Point is not in subgroup"),
+        }
+    }
 }
 
 impl<P: GroupParams> AffineG<P> {
@@ -132,6 +142,13 @@ impl<P: GroupParams> AffineG<P> {
 
     pub fn y_mut(&mut self) -> &mut P::Base {
         &mut self.y
+    }
+
+    pub fn one() -> Self {
+        Self {
+            x: P::Base::zero(),
+            y: P::Base::one(),
+        }
     }
 }
 
@@ -330,6 +347,17 @@ impl<P: GroupParams> Add<G<P>> for G<P> {
                 z: ((self.z + other.z).squared() - z1_squared - z2_squared) * h,
             }
         }
+    }
+}
+impl<P: GroupParams> AddAssign for G<P> {
+    fn add_assign(&mut self, rhs: Self) {
+        *self = *self + rhs;
+    }
+}
+
+impl<P: GroupParams> AddAssign<&G<P>> for G<P> {
+    fn add_assign(&mut self, rhs: &G<P>) {
+        *self += *rhs;
     }
 }
 
@@ -597,7 +625,7 @@ impl G2Precomp {
     }
 }
 
-pub fn miller_loop_batch(g2_precomputes: &[G2Precomp], g1_vec: &[AffineG<G1Params>]) -> Fq12 {
+pub fn miller_loop_batch(g2_precomputes: &Vec<G2Precomp>, g1_vec: &Vec<AffineG<G1Params>>) -> Fq12 {
     let mut f = Fq12::one();
 
     let mut idx = 0;
@@ -762,6 +790,95 @@ impl AffineG<G2Params> {
         coeffs.push(r.mixed_addition_step_for_flipped_miller_loop(&q2));
 
         G2Precomp { q: *self, coeffs }
+    }
+}
+
+fn ln_without_floats(a: usize) -> usize {
+    // log2(a) * ln(2)
+    (log2(a) * 69 / 100) as usize
+}
+
+fn log2(x: usize) -> u32 {
+    if x <= 1 {
+        return 0;
+    }
+
+    let n = x.leading_zeros();
+    core::mem::size_of::<usize>() as u32 * 8 - n
+}
+
+impl G1 {
+    pub fn msm_variable_base(points: &[G1], scalars: &[Fr]) -> G1 {
+        let mut scalars = scalars.to_vec();
+        let c = if scalars.len() < 32 {
+            3
+        } else {
+            ln_without_floats(scalars.len()) + 2
+        };
+
+        let num_bits = 255usize;
+        let fr_one = Fr::one();
+
+        let zero = G1::one();
+        let window_stars: Vec<_> = (0..num_bits).step_by(c).collect();
+
+        let window_sums: Vec<_> = window_stars
+            .iter()
+            .map(|&w_start| {
+                let mut res = zero;
+                // We don't need the "zero" bucket, so we only have 2^c - 1 buckets
+                let mut buckets = vec![zero; (1 << c) - 1];
+                scalars
+                    .iter_mut()
+                    .zip(points)
+                    .filter(|(s, _)| !(*s == &Fr::zero()))
+                    .for_each(|(scalar, &base)| {
+                        if *scalar == fr_one {
+                            // We only process unit scalars once in the first window.
+                            if w_start == 0 {
+                                res = res.add(base);
+                            }
+                        } else {
+                            // We right-shift by w_start, thus getting rid of the
+                            // lower bits.
+                            *scalar = scalar.divn(w_start as u32);
+                            // We mod the remaining bits by the window size.
+                            let scalar = scalar.0 .0[0] % (1 << c);
+
+                            // If the scalar is non-zero, we update the corresponding
+                            // bucket.
+                            // (Recall that `buckets` doesn't have a zero bucket.)
+                            if scalar != 0 {
+                                buckets[(scalar - 1) as usize] =
+                                    buckets[(scalar - 1) as usize].add(base);
+                            }
+                        }
+                    });
+
+                let mut running_sum = G1::one();
+                for b in buckets.into_iter().rev() {
+                    running_sum += b;
+                    res += running_sum;
+                }
+
+                res
+            })
+            .collect();
+
+        // We store the sum for the lowest window.
+        let lowest = *window_sums.first().unwrap();
+        // We're traversing windows from high to low.
+        window_sums[1..]
+            .iter()
+            .rev()
+            .fold(zero, |mut total, sum_i| {
+                total += sum_i;
+                for _ in 0..c {
+                    total = total.double();
+                }
+                total
+            })
+            + lowest
     }
 }
 

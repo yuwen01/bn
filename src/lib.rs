@@ -10,7 +10,8 @@ use crate::fields::FieldElement;
 use crate::groups::{G1Params, G2Params, GroupElement, GroupParams};
 
 use alloc::vec::Vec;
-use core::ops::{Add, Mul, Neg, Sub};
+use core::fmt::Display;
+use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 use rand::Rng;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -101,11 +102,53 @@ impl Mul for Fr {
     }
 }
 
+impl Div for Fr {
+    type Output = Fr;
+
+    fn div(self, other: Fr) -> Fr {
+        Fr(self.0 * other.0)
+    }
+}
+
+impl AddAssign<Fr> for Fr {
+    fn add_assign(&mut self, other: Fr) {
+        *self = *self + other;
+    }
+}
+
+impl SubAssign<Fr> for Fr {
+    fn sub_assign(&mut self, other: Fr) {
+        *self = *self - other;
+    }
+}
+
+impl MulAssign<Fr> for Fr {
+    fn mul_assign(&mut self, other: Fr) {
+        *self = *self * other;
+    }
+}
+
+impl DivAssign<Fr> for Fr {
+    fn div_assign(&mut self, other: Fr) {
+        *self = *self / other;
+    }
+}
+
 #[derive(Debug)]
 pub enum FieldError {
     InvalidSliceLength,
     InvalidU512Encoding,
     NotMember,
+}
+
+impl Display for FieldError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match *self {
+            FieldError::InvalidSliceLength => write!(f, "Invalid slice length"),
+            FieldError::InvalidU512Encoding => write!(f, "Invalid U512 encoding"),
+            FieldError::NotMember => write!(f, "Not a member of the field"),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -114,6 +157,17 @@ pub enum CurveError {
     NotMember,
     Field(FieldError),
     ToAffineConversion,
+}
+
+impl Display for CurveError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            CurveError::InvalidEncoding => write!(f, "Invalid encoding"),
+            CurveError::NotMember => write!(f, "Not a member of the curve"),
+            CurveError::Field(fe) => write!(f, "Field error: {:?}", fe),
+            CurveError::ToAffineConversion => write!(f, "Failed to convert to affine coordinates"),
+        }
+    }
 }
 
 impl From<FieldError> for CurveError {
@@ -377,6 +431,13 @@ impl G1 {
             .map_err(|_| CurveError::NotMember)
             .map(Into::into)
     }
+
+    pub fn msm(points: &[Self], scalars: &[Fr]) -> Self {
+        G1(groups::G1::msm_variable_base(
+            &points.iter().map(|p| p.0).collect::<Vec<_>>(),
+            &scalars.iter().map(|x| x.0).collect::<Vec<_>>(),
+        ))
+    }
 }
 
 impl Group for G1 {
@@ -438,6 +499,12 @@ impl Mul<Fr> for G1 {
 #[repr(C)]
 pub struct AffineG1(groups::AffineG1);
 
+impl Default for AffineG1 {
+    fn default() -> Self {
+        AffineG1(groups::AffineG::one())
+    }
+}
+
 impl AffineG1 {
     pub fn new(x: Fq, y: Fq) -> Result<Self, GroupError> {
         Ok(AffineG1(groups::AffineG1::new(x.0, y.0)?))
@@ -463,10 +530,19 @@ impl AffineG1 {
         g1.0.to_affine().map(AffineG1)
     }
 }
+impl Into<G1> for AffineG1 {
+    fn into(self) -> G1 {
+        G1(self.0.to_jacobian())
+    }
+}
 
-impl From<AffineG1> for G1 {
-    fn from(affine: AffineG1) -> Self {
-        G1(affine.0.to_jacobian())
+impl Into<AffineG1> for G1 {
+    fn into(self) -> AffineG1 {
+        AffineG1(
+            self.0
+                .to_affine()
+                .expect("Unable to convert G1 to AffineG1"),
+        )
     }
 }
 
@@ -603,6 +679,9 @@ impl Mul<Fr> for G2 {
 pub struct Gt(fields::Fq12);
 
 impl Gt {
+    pub fn zero() -> Self {
+        Gt(fields::Fq12::zero())
+    }
     pub fn one() -> Self {
         Gt(fields::Fq12::one())
     }
@@ -614,6 +693,9 @@ impl Gt {
     }
     pub fn final_exponentiation(&self) -> Option<Self> {
         self.0.final_exponentiation().map(Gt)
+    }
+    pub fn is_zero(&self) -> bool {
+        self.0.is_zero()
     }
 }
 

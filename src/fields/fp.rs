@@ -2,7 +2,7 @@ use crate::arith::{U256, U512};
 use crate::fields::FieldElement;
 use alloc::vec::Vec;
 use bytemuck::{AnyBitPattern, NoUninit};
-use core::ops::{Add, Mul, Neg, Sub};
+use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 use rand::Rng;
 
 cfg_if::cfg_if! {
@@ -15,7 +15,7 @@ cfg_if::cfg_if! {
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, NoUninit, AnyBitPattern)]
 #[repr(C)]
-pub struct Fr(U256);
+pub struct Fr(pub(crate) U256);
 
 impl From<Fr> for U256 {
     #[inline]
@@ -151,6 +151,35 @@ impl Fr {
 
         self
     }
+
+    #[inline]
+    pub fn divn(&self, mut n: u32) -> Fr {
+        if n >= 256 {
+            return Fr::zero();
+        }
+
+        let mut out = *self;
+
+        while n >= 128 {
+            let mut t = 0;
+            for i in out.0 .0.iter_mut().rev() {
+                core::mem::swap(&mut t, i);
+            }
+            n -= 128
+        }
+
+        if n > 0 {
+            let mut t = 0;
+            for i in out.0 .0.iter_mut().rev() {
+                let t2 = *i << (64 - n);
+                *i >>= n;
+                *i |= t;
+                t = t2;
+            }
+        }
+
+        out
+    }
 }
 
 impl FieldElement for Fr {
@@ -208,10 +237,17 @@ impl Add for Fr {
     type Output = Fr;
 
     #[inline]
-    fn add(mut self, other: Fr) -> Fr {
-        self.0.add(&other.0, &Self::modulus());
+    fn add(self, other: Fr) -> Fr {
+        let mut result = self;
+        result.add_assign(other);
+        result
+    }
+}
 
-        self
+impl AddAssign for Fr {
+    #[inline]
+    fn add_assign(&mut self, other: Fr) {
+        self.0.add(&other.0, &Self::modulus());
     }
 }
 
@@ -219,10 +255,17 @@ impl Sub for Fr {
     type Output = Fr;
 
     #[inline]
-    fn sub(mut self, other: Fr) -> Fr {
-        self.0.sub(&other.0, &Self::modulus());
+    fn sub(self, other: Fr) -> Fr {
+        let mut result = self;
+        result.sub_assign(other);
+        result
+    }
+}
 
-        self
+impl SubAssign for Fr {
+    #[inline]
+    fn sub_assign(&mut self, other: Fr) {
+        self.0.sub(&other.0, &Self::modulus());
     }
 }
 
@@ -231,7 +274,16 @@ impl Mul for Fr {
 
     #[inline]
     #[allow(unused_mut)]
-    fn mul(mut self, other: Fr) -> Fr {
+    fn mul(self, other: Fr) -> Fr {
+        let mut result = self;
+        result.mul_assign(other);
+        result
+    }
+}
+
+impl MulAssign for Fr {
+    #[inline]
+    fn mul_assign(&mut self, other: Fr) {
         #[cfg(target_os = "zkvm")]
         {
             let mut result: [u32; 8] = [0u32; 8];
@@ -246,12 +298,12 @@ impl Mul for Fr {
                     &rhs as *const [u32; 8],
                     &modulus as *const [u32; 8],
                 );
-                Self(U256::from(cast::<[u32; 8], [u64; 4]>(result)))
+                self.0 = U256::from(cast::<[u32; 8], [u64; 4]>(result));
             }
         }
         #[cfg(not(target_os = "zkvm"))]
         {
-            self.cpu_mul(other)
+            self.cpu_mul(other);
         }
     }
 }
@@ -264,6 +316,27 @@ impl Neg for Fr {
         self.0.neg(&Self::modulus());
 
         self
+    }
+}
+
+impl Div for Fr {
+    type Output = Fr;
+
+    #[inline]
+    fn div(self, other: Fr) -> Fr {
+        self * other.inverse().expect("division by zero")
+    }
+}
+
+impl DivAssign for Fr {
+    fn div_assign(&mut self, rhs: Self) {
+        *self = *self / rhs;
+    }
+}
+
+impl From<u64> for Fr {
+    fn from(a: u64) -> Self {
+        Fr(U256::from([a, 0, 0, 0]))
     }
 }
 
