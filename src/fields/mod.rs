@@ -5,7 +5,7 @@ mod fq6;
 
 use crate::arith::U256;
 use alloc::fmt::Debug;
-use core::ops::{Add, Mul, Neg, Sub};
+use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 use rand::Rng;
 
 pub use self::fp::{const_fq, Fq, Fr};
@@ -46,6 +46,10 @@ pub trait FieldElement:
 
         res
     }
+}
+
+pub trait Sqrt: Sized {
+    fn sqrt(&self) -> Option<Self>;
 }
 
 #[cfg(test)]

@@ -1,4 +1,4 @@
-#![no_std]
+// #![no_std]
 
 extern crate alloc;
 
@@ -178,7 +178,7 @@ impl From<FieldError> for CurveError {
 
 pub use crate::groups::Error as GroupError;
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd)]
 #[repr(C)]
 pub struct Fq(pub fields::Fq);
 
@@ -264,6 +264,12 @@ impl Mul for Fq {
 
     fn mul(self, other: Fq) -> Fq {
         Fq(self.0 * other.0)
+    }
+}
+
+impl Ord for Fq {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.0.cmp(&other.0)
     }
 }
 
@@ -380,6 +386,10 @@ impl G1 {
         G1(groups::G1::new(x.0, y.0, z.0))
     }
 
+    pub fn zero() -> Self {
+        G1(groups::G1::zero())
+    }
+
     pub fn x(&self) -> Fq {
         Fq(*self.0.x())
     }
@@ -410,6 +420,7 @@ impl G1 {
 
     pub fn from_compressed(bytes: &[u8]) -> Result<Self, CurveError> {
         if bytes.len() != 33 {
+            println!("Buffer length is not 33: {}", bytes.len());
             return Err(CurveError::InvalidEncoding);
         }
 
@@ -510,6 +521,10 @@ impl AffineG1 {
         Ok(AffineG1(groups::AffineG1::new(x.0, y.0)?))
     }
 
+    pub fn identity() -> Self {
+        AffineG1(groups::AffineG1::new(fields::Fq::zero(), fields::Fq::zero()).unwrap())
+    }
+
     pub fn x(&self) -> Fq {
         Fq(*self.0.x())
     }
@@ -528,6 +543,10 @@ impl AffineG1 {
 
     pub fn from_jacobian(g1: G1) -> Option<Self> {
         g1.0.to_affine().map(AffineG1)
+    }
+
+    pub fn get_ys_from_x_unchecked(x: Fq) -> Option<(Fq, Fq)> {
+        groups::AffineG1::get_ys_from_x_unchecked(x.0).map(|(neq_y, y)| (Fq(neq_y), Fq(y)))
     }
 }
 impl Into<G1> for AffineG1 {

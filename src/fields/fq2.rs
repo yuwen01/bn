@@ -4,6 +4,8 @@ use bytemuck::{AnyBitPattern, NoUninit};
 use core::ops::{Add, Mul, Neg, Sub};
 use rand::Rng;
 
+use super::Sqrt;
+
 cfg_if::cfg_if! {
     if #[cfg(target_os = "zkvm")] {
         use sp1_lib::io::{hint_slice, read_vec};
@@ -32,7 +34,7 @@ pub const fn fq2_nonresidue() -> Fq2 {
     )
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, NoUninit, AnyBitPattern)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, NoUninit, AnyBitPattern, PartialOrd, Ord)]
 #[repr(C)]
 pub struct Fq2 {
     c0: Fq,
@@ -363,14 +365,14 @@ lazy_static::lazy_static! {
     ]);
 
     static ref FQ_MINUS3_DIV4: Fq =
-        Fq::new(3.into()).expect("3 is a valid field element and static; qed").neg() *
+        Fq::new(3.into()).expect("3 is a valid field element and static; qed").cpu_neg().cpu_mul(
         Fq::new(4.into()).expect("4 is a valid field element and static; qed").inverse()
-        .expect("4 has inverse in Fq and is static; qed");
+        .expect("4 has inverse in Fq and is static; qed"));
 
     static ref FQ_MINUS1_DIV2: Fq =
-        Fq::new(1.into()).expect("1 is a valid field element and static; qed").neg() *
+        Fq::new(1.into()).expect("1 is a valid field element and static; qed").cpu_neg().cpu_mul(
         Fq::new(2.into()).expect("2 is a valid field element and static; qed").inverse()
-            .expect("2 has inverse in Fq and is static; qed");
+            .expect("2 has inverse in Fq and is static; qed"));
 }
 
 impl Fq2 {
@@ -430,6 +432,12 @@ impl Fq2 {
         let c1: U256 = (*self.imaginary()).into();
 
         U512::new(&c1, &c0, &FQ)
+    }
+}
+
+impl Sqrt for Fq2 {
+    fn sqrt(&self) -> Option<Self> {
+        self.sqrt()
     }
 }
 

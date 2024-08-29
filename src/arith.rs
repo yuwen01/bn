@@ -199,19 +199,41 @@ pub enum Error {
 
 impl U256 {
     /// Initialize U256 from slice of bytes (big endian)
+    // pub fn from_slice(s: &[u8]) -> Result<U256, Error> {
+    //     println!("s.len(): {:?}", s.len());
+    //     if s.len() != 32 {
+    //         return Err(Error::InvalidLength {
+    //             expected: 32,
+    //             actual: s.len(),
+    //         });
+    //     }
+
+    //     let mut n = [0; 2];
+    //     for (l, i) in (0..2).rev().zip((0..2).map(|i| i * 16)) {
+    //         n[l] = BigEndian::read_u128(&s[i..]);
+    //     }
+
+    //     Ok(U256(n))
+    // }
     pub fn from_slice(s: &[u8]) -> Result<U256, Error> {
-        if s.len() != 32 {
+        println!("s.len(): {:?}", s.len());
+
+        let mut padded = [0u8; 32];
+
+        if s.len() > 32 {
             return Err(Error::InvalidLength {
                 expected: 32,
                 actual: s.len(),
             });
         }
 
+        // Copy the input slice to the end of the padded array
+        padded[32 - s.len()..].copy_from_slice(s);
+
         let mut n = [0; 2];
         for (l, i) in (0..2).rev().zip((0..2).map(|i| i * 16)) {
-            n[l] = BigEndian::read_u128(&s[i..]);
+            n[l] = BigEndian::read_u128(&padded[i..]);
         }
-
         Ok(U256(n))
     }
 
@@ -302,6 +324,19 @@ impl U256 {
         sub_noborrow(&mut self.0, &other.0);
     }
 
+    pub(crate) fn cpu_mul(&mut self, other: &U256, modulo: &U256) {
+        let mut res = [0u128; 4];
+
+        unroll! {
+            for i in 0..2 {
+                mac_digit(i, &mut res, &other.0, self.0[i]);
+            }
+        }
+
+        let (_, r) = U512(res).divrem(modulo);
+        *self = r;
+    }
+
     /// Multiply `self` by `other` (mod `modulo`)
     pub fn mul(&mut self, other: &U256, modulo: &U256) {
         #[cfg(target_os = "zkvm")]
@@ -318,16 +353,7 @@ impl U256 {
         }
         #[cfg(not(target_os = "zkvm"))]
         {
-            let mut res = [0u128; 4];
-
-            unroll! {
-                for i in 0..2 {
-                    mac_digit(i, &mut res, &other.0, self.0[i]);
-                }
-            }
-
-            let (_, r) = U512(res).divrem(modulo);
-            *self = r;
+            self.cpu_mul(other, modulo);
         }
     }
 
@@ -837,4 +863,12 @@ fn testing_mul2() {
     ]);
     r_inv.mul(&one, &modulo);
     assert_eq!(r_inv, U256::from([1, 0, 0, 0]));
+}
+
+#[test]
+fn test_from_slice() {
+    let lhs = U256::one();
+    let rhs = U256::from_slice(&[1]).unwrap();
+
+    assert_eq!(lhs, rhs);
 }

@@ -5,6 +5,8 @@ use bytemuck::{AnyBitPattern, NoUninit};
 use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 use rand::Rng;
 
+use super::Sqrt;
+
 cfg_if::cfg_if! {
     if #[cfg(target_os = "zkvm")] {
         use bytemuck::{cast_ref, cast_mut, cast};
@@ -212,21 +214,21 @@ impl FieldElement for Fr {
     }
 
     fn inverse_unconstrained(self) -> Option<Self> {
-        #[cfg(target_os = "zkvm")]
-        {
-            sp1_lib::unconstrained! {
-                let mut buf = [0u8; 33];
-                let bytes = cast::<Fr, [u8; 32]>(self.inverse().unwrap()) ;
-                buf.copy_from_slice(bytes.as_slice());
-                hint_slice(&buf);
-            }
+        // #[cfg(target_os = "zkvm")]
+        // {
+        //     sp1_lib::unconstrained! {
+        //         let mut buf = [0u8; 33];
+        //         let bytes = cast::<Fr, [u8; 32]>(self.inverse().unwrap()) ;
+        //         buf.copy_from_slice(bytes.as_slice());
+        //         hint_slice(&buf);
+        //     }
 
-            let bytes: [u8; 32] = sp1_lib::io::read_vec().try_into().unwrap();
-            let inv = Fr(U256(cast::<[u8; 32], [u128; 2]>(bytes)));
-            Some(inv).filter(|inv| !self.is_zero() && self * *inv == Fr::one())
-        }
+        //     let bytes: [u8; 32] = sp1_lib::io::read_vec().try_into().unwrap();
+        //     let inv = Fr(U256(cast::<[u8; 32], [u128; 2]>(bytes)));
+        //     Some(inv).filter(|inv| !self.is_zero() && self * *inv == Fr::one())
+        // }
 
-        #[cfg(not(target_os = "zkvm"))]
+        // #[cfg(not(target_os = "zkvm"))]
         {
             self.inverse()
         }
@@ -340,7 +342,7 @@ impl From<u64> for Fr {
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug, NoUninit, AnyBitPattern)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug, NoUninit, AnyBitPattern, Ord)]
 #[repr(C)]
 pub struct Fq(pub U256);
 
@@ -507,7 +509,7 @@ impl Fq {
     // This is used for arithmetic in unconstrained mode
     #[inline]
     pub(crate) fn cpu_mul(mut self, other: Fq) -> Fq {
-        self.0.mul(&other.0, &Self::modulus());
+        self.0.cpu_mul(&other.0, &Self::modulus());
         self
     }
 
@@ -705,22 +707,36 @@ lazy_static::lazy_static! {
     ]);
 
     pub static ref FQ_MINUS3_DIV4: Fq =
-        Fq::new(3.into()).expect("3 is a valid field element and static; qed").neg() *
+        Fq::new(3.into()).expect("3 is a valid field element and static; qed").cpu_neg().cpu_mul(
         Fq::new(4.into()).expect("4 is a valid field element and static; qed").inverse()
-            .expect("4 has inverse in Fq and is static; qed");
+            .expect("4 has inverse in Fq and is static; qed"));
 
     static ref FQ_MINUS1_DIV2: Fq =
-        Fq::new(1.into()).expect("1 is a valid field element and static; qed").neg() *
+        Fq::new(1.into()).expect("1 is a valid field element and static; qed").cpu_neg().cpu_mul(
         Fq::new(2.into()).expect("2 is a valid field element and static; qed").inverse()
-            .expect("2 has inverse in Fq and is static; qed");
+            .expect("2 has inverse in Fq and is static; qed"));
 
 }
 
 impl Fq {
+    pub(crate) fn cpu_pow<I: Into<U256>>(&self, by: I) -> Self {
+        let mut res = Self::one();
+
+        for i in by.into().bits() {
+            res = res.cpu_mul(res);
+            if i {
+                res = res.cpu_mul(*self);
+            }
+        }
+
+        res
+    }
+
     pub fn sqrt(&self) -> Option<Self> {
         // This is used for arithmetic in unconstrained mode
         fn cpu_sqrt(f: &Fq) -> Option<Fq> {
-            let a1 = f.pow(*FQ_MINUS3_DIV4);
+            let a = *FQ_MINUS3_DIV4;
+            let a1 = f.cpu_pow(*FQ_MINUS3_DIV4);
             let a1a = a1.cpu_mul(*f);
             let a0 = a1.cpu_mul(a1a);
             let mut am1 = *FQ;
@@ -763,6 +779,12 @@ impl Fq {
         {
             cpu_sqrt(self)
         }
+    }
+}
+
+impl Sqrt for Fq {
+    fn sqrt(&self) -> Option<Self> {
+        self.sqrt()
     }
 }
 
