@@ -357,6 +357,14 @@ impl Mul for Fq2 {
     }
 }
 
+impl Div for Fq2 {
+    type Output = Self;
+
+    fn div(self, other: Self) -> Self {
+        Fq2(self.0 / other.0)
+    }
+}
+
 pub trait Group:
     Send
     + Sync
@@ -604,6 +612,10 @@ impl G2 {
 
     pub fn from_compressed(bytes: &[u8]) -> Result<Self, CurveError> {
         if bytes.len() != 65 {
+            println!(
+                "Length of bytes is not 65, returning Err(CurveError::InvalidEncoding). Length: {}",
+                bytes.len()
+            );
             return Err(CurveError::InvalidEncoding);
         }
 
@@ -613,7 +625,6 @@ impl G2 {
         let y_squared = (x * x * x) + G2::b();
         let y = y_squared.sqrt().ok_or(CurveError::NotMember)?;
         let y_neg = -y;
-
         let y_gt = y.0.to_u512() > y_neg.0.to_u512();
 
         let e_y = if sign == 10 {
@@ -633,7 +644,57 @@ impl G2 {
         };
 
         AffineG2::new(x, e_y)
-            .map_err(|_| CurveError::NotMember)
+            .map_err(|_| {
+                println!("Failed to create a new AffineG2, returning Err(CurveError::NotMember)");
+                CurveError::NotMember
+            })
+            .map(Into::into)
+    }
+
+    pub fn deserialize_compressed(bytes: &[u8]) -> Result<Self, CurveError> {
+        if bytes.len() != 64 {
+            return Err(CurveError::InvalidEncoding);
+        }
+        // println!("1. Starting G2 deserialization");
+        let c0 = &bytes[..32];
+        // let c1 = &bytes[32..];
+        // println!("2. Extracted c0 and c1 from bytes");
+
+        let negate_point = c0[0] & 1 == 1;
+        // println!("3. Negate point: {}", negate_point);
+
+        // println!("4. Converting c0 to Fq");
+        // let c0 = Fq::from_slice(&c0).map_err(|_| {
+        //     println!("Error: Failed to convert c0 to Fq");
+        //     CurveError::NotMember
+        // })?;
+
+        // println!("5. Converting c1 to Fq");
+        // let c1 = Fq::from_slice(c1).map_err(|_| {
+        //     println!("Error: Failed to convert c1 to Fq");
+        //     CurveError::NotMember
+        // })?;
+
+        // println!("6. Creating Fq2 from c0 and c1");
+        // let x = Fq2::new(c0, c1);
+        // println!("7. x = {:?}", x);
+        let x = Fq2::from_slice(&bytes).map_err(|_| {
+            println!("Error: Failed to convert bytes to Fq2");
+            CurveError::NotMember
+        })?;
+
+        let y_squared = (x * x * x) + G2::b();
+        let y = y_squared.sqrt().ok_or_else(|| CurveError::NotMember)?;
+        let y_neg = -y;
+        let y = match negate_point {
+            true => y,
+            false => y_neg,
+        };
+        AffineG2::new(x, y)
+            .map_err(|_| {
+                println!("Error: Failed to create a new AffineG2");
+                CurveError::NotMember
+            })
             .map(Into::into)
     }
 }
@@ -754,7 +815,7 @@ pub fn miller_loop_batch(pairs: &[(G2, G1)]) -> Result<Gt, CurveError> {
     Ok(Gt(groups::miller_loop_batch(&ps, &qs)))
 }
 
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(C)]
 pub struct AffineG2(groups::AffineG2);
 

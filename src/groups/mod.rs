@@ -117,7 +117,9 @@ impl Display for Error {
 
 impl<P: GroupParams> AffineG<P> {
     pub fn new(x: P::Base, y: P::Base) -> Result<Self, Error> {
-        if y.squared() == (x.squared() * x) + P::coeff_b() {
+        let lhs = y.squared();
+        let rhs = (x.squared() * x) + P::coeff_b();
+        if lhs == rhs {
             if P::check_order() {
                 let p: G<P> = G {
                     x,
@@ -132,6 +134,9 @@ impl<P: GroupParams> AffineG<P> {
 
             Ok(AffineG { x, y })
         } else {
+            // Print left-hand side and right-hand side of the curve equation
+            println!("LHS (y^2): {:?}", y.squared());
+            println!("RHS (x^3 + Ax + B): {:?}", (x.squared() * x) + P::coeff_b());
             Err(Error::NotOnCurve)
         }
     }

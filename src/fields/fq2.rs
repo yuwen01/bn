@@ -3,6 +3,7 @@ use crate::fields::{const_fq, FieldElement, Fq};
 use bytemuck::{AnyBitPattern, NoUninit};
 use core::ops::{Add, Mul, Neg, Sub};
 use rand::Rng;
+use std::ops::Div;
 
 use super::Sqrt;
 
@@ -323,6 +324,16 @@ impl Mul for Fq2 {
     }
 }
 
+impl Div for Fq2 {
+    type Output = Fq2;
+
+    fn div(self, rhs: Self) -> Self::Output {
+        self * rhs
+            .inverse()
+            .expect("Failed to compute the inverse of the divisor")
+    }
+}
+
 impl Sub for Fq2 {
     type Output = Fq2;
 
@@ -380,11 +391,23 @@ impl Fq2 {
         Fq2::new(Fq::zero(), Fq::one())
     }
 
+    fn cpu_pow(&self, by: U256) -> Self {
+        let mut res = Self::one();
+
+        for i in by.bits() {
+            res = res.cpu_mul(res);
+            if i {
+                res = res.cpu_mul(*self);
+            }
+        }
+        res
+    }
+
     fn cpu_sqrt(&self) -> Option<Self> {
-        let a1 = self.pow::<U256>((*FQ_MINUS3_DIV4).into());
+        let a1 = self.cpu_pow((*FQ_MINUS3_DIV4).into());
         let a1a = a1.cpu_mul(*self);
         let alpha = a1.cpu_mul(a1a);
-        let a0 = alpha.pow(*FQ).cpu_mul(alpha);
+        let a0 = alpha.cpu_pow(*FQ).cpu_mul(alpha);
 
         if a0 == Fq2::one().cpu_neg() {
             return None;
