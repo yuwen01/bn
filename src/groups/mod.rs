@@ -136,9 +136,6 @@ impl<P: GroupParams> AffineG<P> {
 
             Ok(AffineG { x, y })
         } else {
-            // Print left-hand side and right-hand side of the curve equation
-            println!("LHS (y^2): {:?}", y.squared());
-            println!("RHS (x^3 + Ax + B): {:?}", (x.squared() * x) + P::coeff_b());
             Err(Error::NotOnCurve)
         }
     }
@@ -847,76 +844,82 @@ fn log2(x: usize) -> u32 {
 
 impl G1 {
     pub fn msm_variable_base(points: &[G1], scalars: &[Fr]) -> G1 {
-        let mut scalars = scalars.to_vec();
-        let c = if scalars.len() < 32 {
-            3
-        } else {
-            ln_without_floats(scalars.len()) + 2
-        };
-
-        let num_bits = 255usize;
-        let fr_one = Fr::one();
-
-        let zero = G1::one();
-        let window_stars: Vec<_> = (0..num_bits).step_by(c).collect();
-
-        let window_sums: Vec<_> = window_stars
+        points
             .iter()
-            .map(|&w_start| {
-                let mut res = zero;
-                // We don't need the "zero" bucket, so we only have 2^c - 1 buckets
-                let mut buckets = vec![zero; (1 << c) - 1];
-                scalars
-                    .iter_mut()
-                    .zip(points)
-                    .filter(|(s, _)| !(*s == &Fr::zero()))
-                    .for_each(|(scalar, &base)| {
-                        if *scalar == fr_one {
-                            // We only process unit scalars once in the first window.
-                            if w_start == 0 {
-                                res = res.add(base);
-                            }
-                        } else {
-                            // We right-shift by w_start, thus getting rid of the
-                            // lower bits.
-                            *scalar = scalar.divn(w_start as u32);
-                            // We mod the remaining bits by the window size.
-                            let scalar = scalar.0 .0[0] % (1 << c);
+            .zip(scalars)
+            .map(|(&p, &s)| p * s)
+            .reduce(|acc, p| acc + p)
+            .unwrap()
+        // let mut scalars = scalars.to_vec();
+        // let c = if scalars.len() < 32 {
+        //     3
+        // } else {
+        //     ln_without_floats(scalars.len()) + 2
+        // };
 
-                            // If the scalar is non-zero, we update the corresponding
-                            // bucket.
-                            // (Recall that `buckets` doesn't have a zero bucket.)
-                            if scalar != 0 {
-                                buckets[(scalar - 1) as usize] =
-                                    buckets[(scalar - 1) as usize].add(base);
-                            }
-                        }
-                    });
+        // let num_bits = 255usize;
+        // let fr_one = Fr::one();
 
-                let mut running_sum = G1::one();
-                for b in buckets.into_iter().rev() {
-                    running_sum += b;
-                    res += running_sum;
-                }
+        // let zero = G1::one();
+        // let window_stars: Vec<_> = (0..num_bits).step_by(c).collect();
 
-                res
-            })
-            .collect();
+        // let window_sums: Vec<_> = window_stars
+        //     .iter()
+        //     .map(|&w_start| {
+        //         let mut res = zero;
+        //         // We don't need the "zero" bucket, so we only have 2^c - 1 buckets
+        //         let mut buckets = vec![zero; (1 << c) - 1];
+        //         scalars
+        //             .iter_mut()
+        //             .zip(points)
+        //             .filter(|(s, _)| !(*s == &Fr::zero()))
+        //             .for_each(|(scalar, &base)| {
+        //                 if *scalar == fr_one {
+        //                     // We only process unit scalars once in the first window.
+        //                     if w_start == 0 {
+        //                         res = res.add(base);
+        //                     }
+        //                 } else {
+        //                     // We right-shift by w_start, thus getting rid of the
+        //                     // lower bits.
+        //                     *scalar = scalar.divn(w_start as u32);
+        //                     // We mod the remaining bits by the window size.
+        //                     let scalar = scalar.0 .0[0] % (1 << c);
 
-        // We store the sum for the lowest window.
-        let lowest = *window_sums.first().unwrap();
-        // We're traversing windows from high to low.
-        window_sums[1..]
-            .iter()
-            .rev()
-            .fold(zero, |mut total, sum_i| {
-                total += sum_i;
-                for _ in 0..c {
-                    total = total.double();
-                }
-                total
-            })
-            + lowest
+        //                     // If the scalar is non-zero, we update the corresponding
+        //                     // bucket.
+        //                     // (Recall that `buckets` doesn't have a zero bucket.)
+        //                     if scalar != 0 {
+        //                         buckets[(scalar - 1) as usize] =
+        //                             buckets[(scalar - 1) as usize].add(base);
+        //                     }
+        //                 }
+        //             });
+
+        //         let mut running_sum = G1::one();
+        //         for b in buckets.into_iter().rev() {
+        //             running_sum += b;
+        //             res += running_sum;
+        //         }
+
+        //         res
+        //     })
+        //     .collect();
+
+        // // We store the sum for the lowest window.
+        // let lowest = *window_sums.first().unwrap();
+        // // We're traversing windows from high to low.
+        // window_sums[1..]
+        //     .iter()
+        //     .rev()
+        //     .fold(zero, |mut total, sum_i| {
+        //         total += sum_i;
+        //         for _ in 0..c {
+        //             total = total.double();
+        //         }
+        //         total
+        //     })
+        //     + lowest
     }
 }
 

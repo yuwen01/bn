@@ -343,11 +343,7 @@ impl Fq2 {
     }
 
     pub fn sqrt(&self) -> Option<Self> {
-        let tmp = self.0.sqrt();
-        println!("tmp: {:?}", tmp);
-        let result = tmp.map(Fq2);
-        println!("sqrt result: {:?}", result);
-        result
+        self.0.sqrt().map(Fq2)
     }
 
     pub fn from_slice(bytes: &[u8]) -> Result<Self, FieldError> {
@@ -463,7 +459,6 @@ impl G1 {
 
     pub fn from_compressed(bytes: &[u8]) -> Result<Self, CurveError> {
         if bytes.len() != 33 {
-            println!("Buffer length is not 33: {}", bytes.len());
             return Err(CurveError::InvalidEncoding);
         }
 
@@ -487,10 +482,13 @@ impl G1 {
     }
 
     pub fn msm(points: &[Self], scalars: &[Fr]) -> Self {
-        G1(groups::G1::msm_variable_base(
+        println!("cycle-tracker-start: msm-points");
+        let out = G1(groups::G1::msm_variable_base(
             &points.iter().map(|p| p.0).collect::<Vec<_>>(),
             &scalars.iter().map(|x| x.0).collect::<Vec<_>>(),
-        ))
+        ));
+        println!("cycle-tracker-end: msm-points");
+        out
     }
 }
 
@@ -706,10 +704,7 @@ impl G2 {
         };
 
         AffineG2::new(x, e_y)
-            .map_err(|_| {
-                println!("Failed to create a new AffineG2, returning Err(CurveError::NotMember)");
-                CurveError::NotMember
-            })
+            .map_err(|_| CurveError::NotMember)
             .map(Into::into)
     }
 }
@@ -868,57 +863,42 @@ impl AffineG2 {
     }
 
     pub fn deserialize_compressed(bytes: &[u8]) -> Result<Self, GroupError> {
-        println!("Entering deserialize_compressed function");
-
-        println!("Checking input length");
         if bytes.len() != 64 {
-            println!("Invalid input length, returning error");
             return Err(GroupError::InvalidInputLength);
         }
 
-        println!("Initializing c0_bytes and c1_bytes");
         let mut c0_bytes = [0u8; 32];
         let mut c1_bytes = [0u8; 32];
 
-        println!("Copying slices from input bytes");
         c0_bytes.copy_from_slice(&bytes[..32]);
         c1_bytes.copy_from_slice(&bytes[32..]);
 
-        println!("Extracting negate_point and hint flags");
         let negate_point = c0_bytes[31] & 1 == 1;
         let hint = c0_bytes[31] & 2 == 2;
 
-        println!("Right-shifting all c0_bytes by 2 bits");
         for i in (1..32).rev() {
             c0_bytes[i] = (c0_bytes[i] >> 2) | (c0_bytes[i - 1] << 6);
         }
         c0_bytes[0] >>= 2;
 
-        println!("Converting c0_bytes to Fq (x0)");
         let x0 = Fq::from_be_bytes_mod_order(&c0_bytes).expect("Failed to convert Fq to bytes");
-        println!("Converting c1_bytes to Fq (x1)");
         let x1 = Fq::from_be_bytes_mod_order(&c1_bytes).expect("Failed to convert Fq to bytes");
 
-        println!("Calculating n3ab");
         let n3ab = x0
             * x1
             * Fq::from_str(
                 "21888242871839275222246405745257275088696311157297823662689037894645226208583", // P - 3
             )
             .expect("Failed to convert Fq to bytes");
-        println!("Calculating a_3");
         let a_3 = x0 * x0 * x0;
-        println!("Calculating b_3");
         let b_3 = x1 * x1 * x1;
 
-        println!("Calculating y0");
         let y0 = Fq::from_str(
             "19485874751759354771024239261021720505790618469301721065564631296452457478373", // FRACTION_27_82_FP
         )
         .expect("Failed to convert Fq to bytes")
             + a_3
             + n3ab * x1;
-        println!("Calculating y1");
         let y1 = -(Fq::from_str(
             "21621313080719284060999498358119991246151234191964923374119659383734918571893", // FRACTION_3_82_FP
         )
@@ -926,15 +906,11 @@ impl AffineG2 {
             + b_3
             + n3ab * x0);
 
-        println!("Calculating sqrt of y");
         let mut y = Fq2::new(y0, y1).sqrt().expect("Failed to calculate sqrt");
-        println!("Checking if point needs to be negated");
         if negate_point {
-            println!("Negating y");
             y = -y;
         }
 
-        println!("Creating new AffineG2 point");
         AffineG2::new(Fq2::new(x0, x1), y)
     }
 

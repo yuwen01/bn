@@ -216,29 +216,22 @@ impl U256 {
     //     Ok(U256(n))
     // }
     pub fn from_slice(s: &[u8]) -> Result<U256, Error> {
-        println!("Entering from_slice function");
         let mut padded = [0u8; 32];
 
-        println!("Input slice length: {}", s.len());
         if s.len() > 32 {
-            println!("Error: Input slice too long");
             return Err(Error::InvalidLength {
                 expected: 32,
                 actual: s.len(),
             });
         }
 
-        println!("Copying input slice to padded array");
         // Copy the input slice to the end of the padded array
         padded[32 - s.len()..].copy_from_slice(s);
 
-        println!("Creating U256 from padded array");
         let mut n = [0; 2];
         for (l, i) in (0..2).rev().zip((0..2).map(|i| i * 16)) {
             n[l] = BigEndian::read_u128(&padded[i..]);
-            println!("n[{}] = {}", l, n[l]);
         }
-        println!("Returning U256");
         Ok(U256(n))
     }
 

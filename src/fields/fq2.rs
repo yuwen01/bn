@@ -410,19 +410,15 @@ impl Fq2 {
         let a0 = alpha.cpu_pow(*FQ).cpu_mul(alpha);
 
         if a0 == Fq2::one().cpu_neg() {
-            println!("a0 is equal to -1");
             return None;
         }
 
-        let out = if alpha == Fq2::one().cpu_neg() {
+        if alpha == Fq2::one().cpu_neg() {
             Some(Self::i().cpu_mul(a1a))
         } else {
             let b = (alpha.cpu_add(Fq2::one())).cpu_pow((*FQ_MINUS1_DIV2).into());
             Some(b.cpu_mul(a1a))
-        };
-
-        println!("sqrt result: {:?}", out);
-        out
+        }
     }
 
     pub fn sqrt(&self) -> Option<Self> {
@@ -444,8 +440,6 @@ impl Fq2 {
                 0 => None,
                 _ => {
                     let sqrt = cast::<[u8; 64], Fq2>(bytes[0..64].try_into().unwrap());
-                    println!("sqrt * sqrt: {:?}", sqrt * sqrt);
-                    println!("self: {:?}", self);
                     Some(sqrt).filter(|sqrt| *sqrt * *sqrt == *self)
                 }
             }
