@@ -2,6 +2,7 @@ use crate::arith::U256;
 use crate::fields::{const_fq, FieldElement, Fq, Fq2, Fq6};
 use core::ops::{Add, Mul, Neg, Sub};
 use rand::Rng;
+use std::ops::Div;
 
 fn frobenius_coeffs_c1(power: usize) -> Fq2 {
     match power % 12 {
@@ -396,6 +397,14 @@ impl Mul for Fq12 {
             c0: bb.mul_by_nonresidue() + aa,
             c1: (self.c0 + self.c1) * (other.c0 + other.c1) - aa - bb,
         }
+    }
+}
+
+impl Div for Fq12 {
+    type Output = Fq12;
+
+    fn div(self, other: Fq12) -> Fq12 {
+        self * other.inverse().expect("division by zero")
     }
 }
 

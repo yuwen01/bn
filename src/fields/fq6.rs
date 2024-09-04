@@ -1,6 +1,7 @@
 use crate::fields::{const_fq, FieldElement, Fq, Fq2};
 use core::ops::{Add, Mul, Neg, Sub};
 use rand::Rng;
+use std::ops::Div;
 
 fn frobenius_coeffs_c1(n: usize) -> Fq2 {
     match n % 6 {
@@ -316,6 +317,14 @@ impl Add for Fq6 {
             c1: self.c1 + other.c1,
             c2: self.c2 + other.c2,
         }
+    }
+}
+
+impl Div for Fq6 {
+    type Output = Fq6;
+
+    fn div(self, other: Fq6) -> Fq6 {
+        self * other.inverse().expect("division by zero")
     }
 }
 

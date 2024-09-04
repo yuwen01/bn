@@ -21,6 +21,7 @@ pub trait FieldElement:
     + Sub<Output = Self>
     + Mul<Output = Self>
     + Neg<Output = Self>
+    + Div<Output = Self>
     + PartialEq
     + Eq
     + Debug

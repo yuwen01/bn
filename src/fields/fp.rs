@@ -678,6 +678,15 @@ impl Mul for Fq {
     }
 }
 
+impl Div for Fq {
+    type Output = Fq;
+
+    #[inline]
+    fn div(self, other: Fq) -> Fq {
+        self * other.inverse().expect("division by zero")
+    }
+}
+
 impl Neg for Fq {
     type Output = Fq;
 

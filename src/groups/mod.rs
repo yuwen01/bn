@@ -104,6 +104,7 @@ pub struct AffineG<P: GroupParams> {
 pub enum Error {
     NotOnCurve,
     NotInSubgroup,
+    InvalidInputLength,
 }
 
 impl Display for Error {
@@ -111,6 +112,7 @@ impl Display for Error {
         match self {
             Error::NotOnCurve => write!(f, "Point is not on curve"),
             Error::NotInSubgroup => write!(f, "Point is not in subgroup"),
+            Error::InvalidInputLength => write!(f, "Invalid input length"),
         }
     }
 }
@@ -141,6 +143,13 @@ impl<P: GroupParams> AffineG<P> {
         }
     }
 
+    pub fn zero() -> Self {
+        AffineG {
+            x: P::Base::zero(),
+            y: P::Base::one(),
+        }
+    }
+
     pub fn x(&self) -> &P::Base {
         &self.x
     }
@@ -158,10 +167,8 @@ impl<P: GroupParams> AffineG<P> {
     }
 
     pub fn one() -> Self {
-        Self {
-            x: P::Base::zero(),
-            y: P::Base::one(),
-        }
+        let p: G<P> = G::one();
+        AffineG::new(p.x / p.z, p.y / p.z).unwrap()
     }
 
     /// Returns the two possible y-coordinates corresponding to the given x-coordinate.

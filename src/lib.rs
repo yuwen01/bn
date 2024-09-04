@@ -10,9 +10,12 @@ use crate::fields::FieldElement;
 use crate::groups::{G1Params, G2Params, GroupElement, GroupParams};
 
 use alloc::vec::Vec;
+use arith::U256;
 use core::fmt::Display;
 use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
+use num_bigint::BigUint;
 use rand::Rng;
+use std::cmp::min;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[repr(C)]
@@ -49,6 +52,15 @@ impl Fr {
             .map_err(|_| FieldError::InvalidSliceLength) // todo: maybe more sensful error handling
             .map(Fr::new_mul_factor)
     }
+    pub fn from_bytes_be_mod_order(slice: &[u8]) -> Result<Self, FieldError> {
+        let mut modulus_bytes = [0u8; 32];
+        Fr::modulus().to_big_endian(&mut modulus_bytes).unwrap();
+        let modulus = BigUint::from_bytes_be(&modulus_bytes);
+
+        let num = BigUint::from_bytes_be(slice) % modulus;
+
+        Fr::from_slice(&num.to_bytes_be())
+    }
     pub fn to_big_endian(&self, slice: &mut [u8]) -> Result<(), FieldError> {
         // NOTE: serialized in Montgomery form (as in the original bn crate)
         self.0
@@ -61,6 +73,9 @@ impl Fr {
     }
     pub fn new_mul_factor(val: arith::U256) -> Self {
         Fr(fields::Fr::new_mul_factor(val))
+    }
+    pub fn modulus() -> arith::U256 {
+        fields::Fr::modulus()
     }
     pub fn into_u256(self) -> arith::U256 {
         (self.0).into()
@@ -106,7 +121,7 @@ impl Div for Fr {
     type Output = Fr;
 
     fn div(self, other: Fr) -> Fr {
-        Fr(self.0 * other.0)
+        Fr(self.0 / other.0)
     }
 }
 
@@ -214,6 +229,22 @@ impl Fq {
             .and_then(|x| fields::Fq::new(x).ok_or(FieldError::NotMember))
             .map(Fq)
     }
+    pub fn from_be_bytes_mod_order(bytes: &[u8]) -> Result<Self, FieldError> {
+        let mut modulus_bytes = [0u8; 32];
+        Fq::modulus().to_big_endian(&mut modulus_bytes).unwrap();
+        let modulus = BigUint::from_bytes_be(&modulus_bytes);
+
+        let num = BigUint::from_bytes_be(bytes) % modulus;
+
+        Fq::from_slice(&num.to_bytes_be())
+    }
+
+    pub fn to_mont_big_endian(&self, slice: &mut [u8]) -> Result<(), FieldError> {
+        let a: arith::U256 = self.0.to_mont().into();
+        a.to_big_endian(slice)
+            .map_err(|_| FieldError::InvalidSliceLength)
+    }
+
     pub fn to_big_endian(&self, slice: &mut [u8]) -> Result<(), FieldError> {
         let a: arith::U256 = self.0.into();
         a.to_big_endian(slice)
@@ -312,7 +343,11 @@ impl Fq2 {
     }
 
     pub fn sqrt(&self) -> Option<Self> {
-        self.0.sqrt().map(Fq2)
+        let tmp = self.0.sqrt();
+        println!("tmp: {:?}", tmp);
+        let result = tmp.map(Fq2);
+        println!("sqrt result: {:?}", result);
+        result
     }
 
     pub fn from_slice(bytes: &[u8]) -> Result<Self, FieldError> {
@@ -529,8 +564,12 @@ impl AffineG1 {
         Ok(AffineG1(groups::AffineG1::new(x.0, y.0)?))
     }
 
-    pub fn identity() -> Self {
-        AffineG1(groups::AffineG1::new(fields::Fq::zero(), fields::Fq::zero()).unwrap())
+    pub fn zero() -> Self {
+        AffineG1(groups::AffineG1::zero())
+    }
+
+    pub fn one() -> Self {
+        AffineG1(groups::AffineG1::one())
     }
 
     pub fn x(&self) -> Fq {
@@ -555,6 +594,29 @@ impl AffineG1 {
 
     pub fn get_ys_from_x_unchecked(x: Fq) -> Option<(Fq, Fq)> {
         groups::AffineG1::get_ys_from_x_unchecked(x.0).map(|(neq_y, y)| (Fq(neq_y), Fq(y)))
+    }
+
+    pub fn compress(p: AffineG1) -> Result<[u8; 64], GroupError> {
+        let mut compressed = [0u8; 64];
+
+        if p == AffineG1::zero() {
+            return Ok(compressed);
+        }
+
+        let (x, y) = (p.x(), p.y());
+
+        x.to_big_endian(&mut compressed[..32])
+            .expect("Failed to convert Fq to bytes");
+
+        let mut y_bytes = [0u8; 32];
+        y.to_big_endian(&mut y_bytes)
+            .expect("Failed to convert Fq to bytes");
+
+        let y_is_odd = y_bytes[31] & 1;
+
+        compressed[0] |= (y_is_odd as u8) << 7;
+
+        Ok(compressed)
     }
 }
 impl Into<G1> for AffineG1 {
@@ -646,53 +708,6 @@ impl G2 {
         AffineG2::new(x, e_y)
             .map_err(|_| {
                 println!("Failed to create a new AffineG2, returning Err(CurveError::NotMember)");
-                CurveError::NotMember
-            })
-            .map(Into::into)
-    }
-
-    pub fn deserialize_compressed(bytes: &[u8]) -> Result<Self, CurveError> {
-        if bytes.len() != 64 {
-            return Err(CurveError::InvalidEncoding);
-        }
-        // println!("1. Starting G2 deserialization");
-        let c0 = &bytes[..32];
-        // let c1 = &bytes[32..];
-        // println!("2. Extracted c0 and c1 from bytes");
-
-        let negate_point = c0[0] & 1 == 1;
-        // println!("3. Negate point: {}", negate_point);
-
-        // println!("4. Converting c0 to Fq");
-        // let c0 = Fq::from_slice(&c0).map_err(|_| {
-        //     println!("Error: Failed to convert c0 to Fq");
-        //     CurveError::NotMember
-        // })?;
-
-        // println!("5. Converting c1 to Fq");
-        // let c1 = Fq::from_slice(c1).map_err(|_| {
-        //     println!("Error: Failed to convert c1 to Fq");
-        //     CurveError::NotMember
-        // })?;
-
-        // println!("6. Creating Fq2 from c0 and c1");
-        // let x = Fq2::new(c0, c1);
-        // println!("7. x = {:?}", x);
-        let x = Fq2::from_slice(&bytes).map_err(|_| {
-            println!("Error: Failed to convert bytes to Fq2");
-            CurveError::NotMember
-        })?;
-
-        let y_squared = (x * x * x) + G2::b();
-        let y = y_squared.sqrt().ok_or_else(|| CurveError::NotMember)?;
-        let y_neg = -y;
-        let y = match negate_point {
-            true => y,
-            false => y_neg,
-        };
-        AffineG2::new(x, y)
-            .map_err(|_| {
-                println!("Error: Failed to create a new AffineG2");
                 CurveError::NotMember
             })
             .map(Into::into)
@@ -820,6 +835,14 @@ pub fn miller_loop_batch(pairs: &[(G2, G1)]) -> Result<Gt, CurveError> {
 pub struct AffineG2(groups::AffineG2);
 
 impl AffineG2 {
+    pub fn zero() -> Self {
+        AffineG2(groups::AffineG2::zero())
+    }
+
+    pub fn one() -> Self {
+        AffineG2(groups::AffineG2::one())
+    }
+
     pub fn new(x: Fq2, y: Fq2) -> Result<Self, GroupError> {
         Ok(AffineG2(groups::AffineG2::new(x.0, y.0)?))
     }
@@ -843,11 +866,113 @@ impl AffineG2 {
     pub fn from_jacobian(g2: G2) -> Option<Self> {
         g2.0.to_affine().map(AffineG2)
     }
+
+    pub fn deserialize_compressed(bytes: &[u8]) -> Result<Self, GroupError> {
+        println!("Entering deserialize_compressed function");
+
+        println!("Checking input length");
+        if bytes.len() != 64 {
+            println!("Invalid input length, returning error");
+            return Err(GroupError::InvalidInputLength);
+        }
+
+        println!("Initializing c0_bytes and c1_bytes");
+        let mut c0_bytes = [0u8; 32];
+        let mut c1_bytes = [0u8; 32];
+
+        println!("Copying slices from input bytes");
+        c0_bytes.copy_from_slice(&bytes[..32]);
+        c1_bytes.copy_from_slice(&bytes[32..]);
+
+        println!("Extracting negate_point and hint flags");
+        let negate_point = c0_bytes[31] & 1 == 1;
+        let hint = c0_bytes[31] & 2 == 2;
+
+        println!("Right-shifting all c0_bytes by 2 bits");
+        for i in (1..32).rev() {
+            c0_bytes[i] = (c0_bytes[i] >> 2) | (c0_bytes[i - 1] << 6);
+        }
+        c0_bytes[0] >>= 2;
+
+        println!("Converting c0_bytes to Fq (x0)");
+        let x0 = Fq::from_be_bytes_mod_order(&c0_bytes).expect("Failed to convert Fq to bytes");
+        println!("Converting c1_bytes to Fq (x1)");
+        let x1 = Fq::from_be_bytes_mod_order(&c1_bytes).expect("Failed to convert Fq to bytes");
+
+        println!("Calculating n3ab");
+        let n3ab = x0
+            * x1
+            * Fq::from_str(
+                "21888242871839275222246405745257275088696311157297823662689037894645226208583", // P - 3
+            )
+            .expect("Failed to convert Fq to bytes");
+        println!("Calculating a_3");
+        let a_3 = x0 * x0 * x0;
+        println!("Calculating b_3");
+        let b_3 = x1 * x1 * x1;
+
+        println!("Calculating y0");
+        let y0 = Fq::from_str(
+            "19485874751759354771024239261021720505790618469301721065564631296452457478373", // FRACTION_27_82_FP
+        )
+        .expect("Failed to convert Fq to bytes")
+            + a_3
+            + n3ab * x1;
+        println!("Calculating y1");
+        let y1 = -(Fq::from_str(
+            "21621313080719284060999498358119991246151234191964923374119659383734918571893", // FRACTION_3_82_FP
+        )
+        .expect("Failed to convert Fq to bytes")
+            + b_3
+            + n3ab * x0);
+
+        println!("Calculating sqrt of y");
+        let mut y = Fq2::new(y0, y1).sqrt().expect("Failed to calculate sqrt");
+        println!("Checking if point needs to be negated");
+        if negate_point {
+            println!("Negating y");
+            y = -y;
+        }
+
+        println!("Creating new AffineG2 point");
+        AffineG2::new(Fq2::new(x0, x1), y)
+    }
+
+    pub fn compress(p: AffineG2) -> Result<[u8; 64], GroupError> {
+        let mut compressed = [0u8; 64];
+
+        if p == AffineG2::zero() {
+            return Ok(compressed);
+        }
+
+        let (x, y) = (p.x(), p.y());
+        let (x_c0, x_c1) = (Fq(*x.0.real()), Fq(*x.0.imaginary()));
+        let (_y_c0, y_c1) = (Fq(*y.0.real()), Fq(*y.0.imaginary()));
+
+        x_c0.to_big_endian(&mut compressed[..32])
+            .expect("Failed to convert Fq to bytes");
+        x_c1.to_big_endian(&mut compressed[32..])
+            .expect("Failed to convert Fq to bytes");
+
+        let y_neg = y_c1 > -y_c1;
+
+        let last_byte = &mut compressed[31];
+        *last_byte &= 0b11111100;
+        *last_byte |= (y_neg as u8) & 1;
+
+        Ok(compressed)
+    }
 }
 
 impl From<AffineG2> for G2 {
     fn from(affine: AffineG2) -> Self {
         G2(affine.0.to_jacobian())
+    }
+}
+
+impl From<G2> for AffineG2 {
+    fn from(g2: G2) -> Self {
+        AffineG2::new(g2.x() / g2.z(), g2.y() / g2.z()).expect("Unable to convert G2 to AffineG2")
     }
 }
 

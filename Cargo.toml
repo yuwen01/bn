@@ -28,6 +28,7 @@ rustc-hex = { version = "2", default-features = false }
 sp1-lib = "1.2.0-rc1"
 cfg-if = "1.0.0"
 bytemuck = { version = "1.16.1", features = ["derive"] }
+num-bigint = "0.4.6"
 
 [dev-dependencies]
 rand = { version = "0.8.3", features = ["std_rng"] }
