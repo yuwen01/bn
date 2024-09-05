@@ -199,22 +199,6 @@ pub enum Error {
 
 impl U256 {
     /// Initialize U256 from slice of bytes (big endian)
-    // pub fn from_slice(s: &[u8]) -> Result<U256, Error> {
-    //     println!("s.len(): {:?}", s.len());
-    //     if s.len() != 32 {
-    //         return Err(Error::InvalidLength {
-    //             expected: 32,
-    //             actual: s.len(),
-    //         });
-    //     }
-
-    //     let mut n = [0; 2];
-    //     for (l, i) in (0..2).rev().zip((0..2).map(|i| i * 16)) {
-    //         n[l] = BigEndian::read_u128(&s[i..]);
-    //     }
-
-    //     Ok(U256(n))
-    // }
     pub fn from_slice(s: &[u8]) -> Result<U256, Error> {
         let mut padded = [0u8; 32];
 

@@ -5,7 +5,7 @@ mod fq6;
 
 use crate::arith::U256;
 use alloc::fmt::Debug;
-use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
+use core::ops::{Add, Div, Mul, Neg, Sub};
 use rand::Rng;
 
 pub use self::fp::{const_fq, Fq, Fr};

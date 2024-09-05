@@ -1,9 +1,8 @@
 use crate::arith::{U256, U512};
 use crate::fields::{const_fq, FieldElement, Fq};
 use bytemuck::{AnyBitPattern, NoUninit};
-use core::ops::{Add, Mul, Neg, Sub};
+use core::ops::{Add, Div, Mul, Neg, Sub};
 use rand::Rng;
-use std::ops::Div;
 
 use super::Sqrt;
 

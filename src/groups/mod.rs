@@ -1,5 +1,6 @@
 use crate::arith::U256;
 use crate::fields::{const_fq, fq2_nonresidue, FieldElement, Fq, Fq12, Fq2, Fr, Sqrt};
+#[allow(unused_imports)]
 use alloc::vec;
 use alloc::vec::Vec;
 use core::fmt::Display;
@@ -9,8 +10,6 @@ use core::{
     ops::{Add, Mul, Neg, Sub},
 };
 use rand::Rng;
-use sp1_lib::{syscall_bn254_add, syscall_bn254_double};
-use std::mem::transmute;
 // This is the NAF version of ate_loop_count. Entries are all mod 4, so 3 = -1
 // n.b. ate_loop_count = 0x19d797039be763ba8
 //                     = 11001110101111001011100000011100110111110011101100011101110101000
@@ -266,71 +265,6 @@ impl<P: GroupParams> G<P> {
                 y: self.y * (zinv_squared * zinv),
             })
         }
-    }
-}
-
-impl AffineG1 {
-    pub fn double(&mut self) -> Self {
-        #[cfg(target_os = "zkvm")]
-        {
-            let mut out = *self;
-            unsafe { syscall_bn254_double(transmute(&mut out)) };
-            out
-        }
-        #[cfg(not(target_os = "zkvm"))]
-        {
-            let p: G1 = (*self).to_jacobian();
-            (p + p)
-                .to_affine()
-                .expect("Unable to convert G1 to AffineG1")
-        }
-    }
-}
-
-impl Add<AffineG1> for AffineG1 {
-    type Output = AffineG1;
-
-    fn add(mut self, other: AffineG1) -> AffineG1 {
-        #[cfg(target_os = "zkvm")]
-        {
-            let mut out = self;
-            if self == other {
-                return self.double();
-            }
-            unsafe { syscall_bn254_add(transmute(&mut out), transmute(&other)) };
-            out
-        }
-        #[cfg(not(target_os = "zkvm"))]
-        {
-            let p: G1 = self.to_jacobian();
-            let q: G1 = other.to_jacobian();
-            (p + q)
-                .to_affine()
-                .expect("Unable to convert G1 to AffineG1")
-        }
-    }
-}
-
-impl Mul<Fr> for AffineG1 {
-    type Output = AffineG1;
-
-    fn mul(self, other: Fr) -> AffineG1 {
-        let mut res = AffineG1::zero();
-        let mut found_one = false;
-
-        for (bit, i) in U256::from(other).bits().enumerate() {
-            if found_one {
-                res = res.double();
-            }
-
-            #[allow(clippy::suspicious_arithmetic_impl)]
-            if i {
-                found_one = true;
-                res = res + self;
-            }
-        }
-
-        res
     }
 }
 
@@ -895,20 +829,6 @@ impl AffineG<G2Params> {
     }
 }
 
-fn ln_without_floats(a: usize) -> usize {
-    // log2(a) * ln(2)
-    (log2(a) * 69 / 100) as usize
-}
-
-fn log2(x: usize) -> u32 {
-    if x <= 1 {
-        return 0;
-    }
-
-    let n = x.leading_zeros();
-    core::mem::size_of::<usize>() as u32 * 8 - n
-}
-
 impl G1 {
     pub fn msm_variable_base(points: &[G1], scalars: &[Fr]) -> G1 {
         points
@@ -917,76 +837,6 @@ impl G1 {
             .map(|(&p, &s)| p * s)
             .reduce(|acc, p| acc + p)
             .unwrap()
-        // let mut scalars = scalars.to_vec();
-        // let c = if scalars.len() < 32 {
-        //     3
-        // } else {
-        //     ln_without_floats(scalars.len()) + 2
-        // };
-
-        // let num_bits = 255usize;
-        // let fr_one = Fr::one();
-
-        // let zero = G1::one();
-        // let window_stars: Vec<_> = (0..num_bits).step_by(c).collect();
-
-        // let window_sums: Vec<_> = window_stars
-        //     .iter()
-        //     .map(|&w_start| {
-        //         let mut res = zero;
-        //         // We don't need the "zero" bucket, so we only have 2^c - 1 buckets
-        //         let mut buckets = vec![zero; (1 << c) - 1];
-        //         scalars
-        //             .iter_mut()
-        //             .zip(points)
-        //             .filter(|(s, _)| !(*s == &Fr::zero()))
-        //             .for_each(|(scalar, &base)| {
-        //                 if *scalar == fr_one {
-        //                     // We only process unit scalars once in the first window.
-        //                     if w_start == 0 {
-        //                         res = res.add(base);
-        //                     }
-        //                 } else {
-        //                     // We right-shift by w_start, thus getting rid of the
-        //                     // lower bits.
-        //                     *scalar = scalar.divn(w_start as u32);
-        //                     // We mod the remaining bits by the window size.
-        //                     let scalar = scalar.0 .0[0] % (1 << c);
-
-        //                     // If the scalar is non-zero, we update the corresponding
-        //                     // bucket.
-        //                     // (Recall that `buckets` doesn't have a zero bucket.)
-        //                     if scalar != 0 {
-        //                         buckets[(scalar - 1) as usize] =
-        //                             buckets[(scalar - 1) as usize].add(base);
-        //                     }
-        //                 }
-        //             });
-
-        //         let mut running_sum = G1::one();
-        //         for b in buckets.into_iter().rev() {
-        //             running_sum += b;
-        //             res += running_sum;
-        //         }
-
-        //         res
-        //     })
-        //     .collect();
-
-        // // We store the sum for the lowest window.
-        // let lowest = *window_sums.first().unwrap();
-        // // We're traversing windows from high to low.
-        // window_sums[1..]
-        //     .iter()
-        //     .rev()
-        //     .fold(zero, |mut total, sum_i| {
-        //         total += sum_i;
-        //         for _ in 0..c {
-        //             total = total.double();
-        //         }
-        //         total
-        //     })
-        //     + lowest
     }
 }
 

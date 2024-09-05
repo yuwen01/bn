@@ -1,4 +1,4 @@
-// #![no_std]
+#![no_std]
 
 extern crate alloc;
 
@@ -624,11 +624,6 @@ impl AffineG1 {
 
         Ok(compressed)
     }
-
-    pub fn double(&self) -> AffineG1 {
-        let mut res = self.0;
-        AffineG1(res.double())
-    }
 }
 
 impl Into<G1> for AffineG1 {
@@ -644,22 +639,6 @@ impl Into<AffineG1> for G1 {
                 .to_affine()
                 .expect("Unable to convert G1 to AffineG1"),
         )
-    }
-}
-
-impl Add<AffineG1> for AffineG1 {
-    type Output = AffineG1;
-
-    fn add(self, other: AffineG1) -> AffineG1 {
-        AffineG1(self.0 + other.0)
-    }
-}
-
-impl Mul<Fr> for AffineG1 {
-    type Output = AffineG1;
-
-    fn mul(self, other: Fr) -> AffineG1 {
-        AffineG1(self.0 * other.0)
     }
 }
 
@@ -702,10 +681,6 @@ impl G2 {
 
     pub fn from_compressed(bytes: &[u8]) -> Result<Self, CurveError> {
         if bytes.len() != 65 {
-            println!(
-                "Length of bytes is not 65, returning Err(CurveError::InvalidEncoding). Length: {}",
-                bytes.len()
-            );
             return Err(CurveError::InvalidEncoding);
         }
 
