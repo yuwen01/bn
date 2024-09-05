@@ -787,6 +787,9 @@ impl Gt {
     pub fn is_zero(&self) -> bool {
         self.0.is_zero()
     }
+    pub fn is_one(&self) -> bool {
+        self == &Gt::one()
+    }
 }
 
 impl Mul<Gt> for Gt {
