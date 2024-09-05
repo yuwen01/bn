@@ -10,12 +10,10 @@ use crate::fields::FieldElement;
 use crate::groups::{G1Params, G2Params, GroupElement, GroupParams};
 
 use alloc::vec::Vec;
-use arith::U256;
 use core::fmt::Display;
 use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 use num_bigint::BigUint;
 use rand::Rng;
-use std::cmp::min;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[repr(C)]
@@ -482,13 +480,23 @@ impl G1 {
     }
 
     pub fn msm(points: &[Self], scalars: &[Fr]) -> Self {
-        println!("cycle-tracker-start: msm-points");
-        let out = G1(groups::G1::msm_variable_base(
+        G1(groups::G1::msm_variable_base(
             &points.iter().map(|p| p.0).collect::<Vec<_>>(),
             &scalars.iter().map(|x| x.0).collect::<Vec<_>>(),
-        ));
-        println!("cycle-tracker-end: msm-points");
-        out
+        ))
+        // points
+        //     .iter()
+        //     .zip(scalars)
+        //     // .map(|(&p, &s)| AffineG1::mul(p.into(), s))
+        //     .map(|(&p, &s)| p * s)
+        //     .reduce(|acc, p| AffineG1::add(acc.into(), p.into()).into())
+        //     // .reduce(|acc: AffineG1, p: AffineG1| acc + p)
+        //     .unwrap()
+        //     .into()
+    }
+
+    pub fn double(&self) -> Self {
+        G1(self.0.double())
     }
 }
 
@@ -616,7 +624,13 @@ impl AffineG1 {
 
         Ok(compressed)
     }
+
+    pub fn double(&self) -> AffineG1 {
+        let mut res = self.0;
+        AffineG1(res.double())
+    }
 }
+
 impl Into<G1> for AffineG1 {
     fn into(self) -> G1 {
         G1(self.0.to_jacobian())
@@ -630,6 +644,22 @@ impl Into<AffineG1> for G1 {
                 .to_affine()
                 .expect("Unable to convert G1 to AffineG1"),
         )
+    }
+}
+
+impl Add<AffineG1> for AffineG1 {
+    type Output = AffineG1;
+
+    fn add(self, other: AffineG1) -> AffineG1 {
+        AffineG1(self.0 + other.0)
+    }
+}
+
+impl Mul<Fr> for AffineG1 {
+    type Output = AffineG1;
+
+    fn mul(self, other: Fr) -> AffineG1 {
+        AffineG1(self.0 * other.0)
     }
 }
 

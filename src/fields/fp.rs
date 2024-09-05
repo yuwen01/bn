@@ -214,21 +214,31 @@ impl FieldElement for Fr {
     }
 
     fn inverse_unconstrained(self) -> Option<Self> {
-        // #[cfg(target_os = "zkvm")]
-        // {
-        //     sp1_lib::unconstrained! {
-        //         let mut buf = [0u8; 33];
-        //         let bytes = cast::<Fr, [u8; 32]>(self.inverse().unwrap()) ;
-        //         buf.copy_from_slice(bytes.as_slice());
-        //         hint_slice(&buf);
-        //     }
-
-        //     let bytes: [u8; 32] = sp1_lib::io::read_vec().try_into().unwrap();
-        //     let inv = Fr(U256(cast::<[u8; 32], [u128; 2]>(bytes)));
-        //     Some(inv).filter(|inv| !self.is_zero() && self * *inv == Fr::one())
-        // }
-
-        // #[cfg(not(target_os = "zkvm"))]
+        #[cfg(target_os = "zkvm")]
+        {
+            // Compute the inverse using the zkvm syscall
+            sp1_lib::unconstrained! {
+                let mut buf = [0u8; 33];
+                self.inverse().map(|inv| {
+                    let bytes = cast::<[u128; 2], [u8; 32]>(inv.0.0);
+                    buf[0..32].copy_from_slice(&bytes);
+                    buf[32] = 1;
+                });
+                hint_slice(&buf);
+            }
+            let byte_vec = sp1_lib::io::read_vec();
+            let bytes: [u8; 33] = byte_vec.try_into().unwrap();
+            match bytes[32] {
+                0 => None,
+                _ => {
+                    let inv = Fr(U256(cast::<[u8; 32], [u128; 2]>(
+                        bytes[0..32].try_into().unwrap(),
+                    )));
+                    Some(inv).filter(|inv| !self.is_zero() && self * *inv == Fr::one())
+                }
+            }
+        }
+        #[cfg(not(target_os = "zkvm"))]
         {
             self.inverse()
         }
@@ -605,18 +615,28 @@ impl FieldElement for Fq {
     fn inverse_unconstrained(self) -> Option<Self> {
         #[cfg(target_os = "zkvm")]
         {
+            // Compute the inverse using the zkvm syscall
             sp1_lib::unconstrained! {
-                let mut buf = [0u8; 32];
-                let bytes = unsafe { cast::<[u128; 2], [u8; 32]>(self.inverse().unwrap().0.0) };
-                buf.copy_from_slice(bytes.as_slice());
+                let mut buf = [0u8; 33];
+                self.inverse().map(|inv| {
+                    let bytes = cast::<[u128; 2], [u8; 32]>(inv.0.0);
+                    buf[0..32].copy_from_slice(&bytes);
+                    buf[32] = 1;
+                });
                 hint_slice(&buf);
             }
-
-            let bytes: [u8; 32] = sp1_lib::io::read_vec().try_into().unwrap();
-            let inv = Fq(U256(cast::<[u8; 32], [u128; 2]>(bytes)));
-            Some(inv).filter(|inv| !self.is_zero() && self * *inv == Fq::one())
+            let byte_vec = sp1_lib::io::read_vec();
+            let bytes: [u8; 33] = byte_vec.try_into().unwrap();
+            match bytes[32] {
+                0 => None,
+                _ => {
+                    let inv = Fq(U256(cast::<[u8; 32], [u128; 2]>(
+                        bytes[0..32].try_into().unwrap(),
+                    )));
+                    Some(inv).filter(|inv| !self.is_zero() && self * *inv == Fq::one())
+                }
+            }
         }
-
         #[cfg(not(target_os = "zkvm"))]
         {
             self.inverse()
@@ -744,7 +764,6 @@ impl Fq {
     pub fn sqrt(&self) -> Option<Self> {
         // This is used for arithmetic in unconstrained mode
         fn cpu_sqrt(f: &Fq) -> Option<Fq> {
-            let a = *FQ_MINUS3_DIV4;
             let a1 = f.cpu_pow(*FQ_MINUS3_DIV4);
             let a1a = a1.cpu_mul(*f);
             let a0 = a1.cpu_mul(a1a);
