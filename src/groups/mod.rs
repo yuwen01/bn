@@ -10,6 +10,7 @@ use core::{
     ops::{Add, Mul, Neg, Sub},
 };
 use rand::Rng;
+use sp1_lib::syscall_bn254_add;
 // This is the NAF version of ate_loop_count. Entries are all mod 4, so 3 = -1
 // n.b. ate_loop_count = 0x19d797039be763ba8
 //                     = 11001110101111001011100000011100110111110011101100011101110101000
@@ -186,6 +187,14 @@ impl<P: GroupParams> AffineG<P> {
             false => Some((neg_y, y)),
         }
     }
+
+    pub fn to_jacobian(self) -> G<P> {
+        G {
+            x: self.x,
+            y: self.y,
+            z: P::Base::one(),
+        }
+    }
 }
 
 impl<P: GroupParams> PartialEq for AffineG<P> {
@@ -217,6 +226,71 @@ impl<P: GroupParams> Clone for AffineG<P> {
 }
 
 impl<P: GroupParams> Copy for AffineG<P> {}
+
+impl AffineG1 {
+    pub fn double(&mut self) -> Self {
+        #[cfg(target_os = "zkvm")]
+        {
+            let mut out = *self;
+            unsafe { syscall_bn254_double(transmute(&mut out)) };
+            out
+        }
+        #[cfg(not(target_os = "zkvm"))]
+        {
+            let p: G1 = (*self).to_jacobian();
+            (p + p)
+                .to_affine()
+                .expect("Unable to convert G1 to AffineG1")
+        }
+    }
+}
+
+impl Add<AffineG1> for AffineG1 {
+    type Output = AffineG1;
+
+    fn add(mut self, other: AffineG1) -> AffineG1 {
+        #[cfg(target_os = "zkvm")]
+        {
+            let mut out = self;
+            if self == other {
+                return self.double();
+            }
+            unsafe { syscall_bn254_add(transmute(&mut out), transmute(&other)) };
+            out
+        }
+        #[cfg(not(target_os = "zkvm"))]
+        {
+            let p: G1 = self.to_jacobian();
+            let q: G1 = other.to_jacobian();
+            (p + q)
+                .to_affine()
+                .expect("Unable to convert G1 to AffineG1")
+        }
+    }
+}
+
+impl Mul<Fr> for AffineG1 {
+    type Output = AffineG1;
+
+    fn mul(self, other: Fr) -> AffineG1 {
+        let mut res = AffineG1::zero();
+        let mut found_one = false;
+
+        for i in U256::from(other).bits() {
+            if found_one {
+                res = res.double();
+            }
+
+            #[allow(clippy::suspicious_arithmetic_impl)]
+            if i {
+                found_one = true;
+                res = res + self;
+            }
+        }
+
+        res
+    }
+}
 
 impl<P: GroupParams> PartialEq for G<P> {
     fn eq(&self, other: &Self) -> bool {
@@ -264,16 +338,6 @@ impl<P: GroupParams> G<P> {
                 x: self.x * zinv_squared,
                 y: self.y * (zinv_squared * zinv),
             })
-        }
-    }
-}
-
-impl<P: GroupParams> AffineG<P> {
-    pub fn to_jacobian(self) -> G<P> {
-        G {
-            x: self.x,
-            y: self.y,
-            z: P::Base::one(),
         }
     }
 }
@@ -328,7 +392,7 @@ impl<P: GroupParams> Mul<Fr> for G<P> {
         let mut res = G::zero();
         let mut found_one = false;
 
-        for (bit, i) in U256::from(other).bits().enumerate() {
+        for i in U256::from(other).bits() {
             if found_one {
                 res = res.double();
             }

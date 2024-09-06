@@ -642,6 +642,22 @@ impl Into<AffineG1> for G1 {
     }
 }
 
+impl Add<AffineG1> for AffineG1 {
+    type Output = AffineG1;
+
+    fn add(self, other: AffineG1) -> AffineG1 {
+        AffineG1(self.0 + other.0)
+    }
+}
+
+impl Mul<Fr> for AffineG1 {
+    type Output = AffineG1;
+
+    fn mul(self, other: Fr) -> AffineG1 {
+        AffineG1(self.0 * other.0)
+    }
+}
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[repr(C)]
 pub struct G2(groups::G2);
