@@ -626,6 +626,14 @@ impl AffineG1 {
     }
 }
 
+impl Neg for AffineG1 {
+    type Output = AffineG1;
+
+    fn neg(self) -> AffineG1 {
+        AffineG1(-self.0)
+    }
+}
+
 impl Into<G1> for AffineG1 {
     fn into(self) -> G1 {
         G1(self.0.to_jacobian())
@@ -961,6 +969,14 @@ impl AffineG2 {
         *last_byte |= (y_neg as u8) & 1;
 
         Ok(compressed)
+    }
+}
+
+impl Neg for AffineG2 {
+    type Output = AffineG2;
+
+    fn neg(self) -> AffineG2 {
+        AffineG2(-self.0)
     }
 }
 
