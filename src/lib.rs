@@ -970,6 +970,10 @@ impl AffineG2 {
 
         Ok(compressed)
     }
+
+    pub fn get_ys_from_x_unchecked(x: Fq2) -> Option<(Fq2, Fq2)> {
+        groups::AffineG2::get_ys_from_x_unchecked(x.0).map(|(neq_y, y)| (Fq2(neq_y), Fq2(y)))
+    }
 }
 
 impl Neg for AffineG2 {

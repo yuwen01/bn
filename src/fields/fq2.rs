@@ -427,7 +427,7 @@ impl Fq2 {
             sp1_lib::unconstrained! {
                 let mut buf = [0u8; 65];
                 self.cpu_sqrt().map(|sqrt| {
-                    let bytes = cast::<[u128; 4], [u8; 64]>(sqrt.to_u512().0);
+                    let bytes = cast::<Fq2, [u8; 64]>(sqrt);
                     buf[0..64].copy_from_slice(&bytes);
                     buf[64] = 1;
                 });
