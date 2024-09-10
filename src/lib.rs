@@ -593,29 +593,6 @@ impl AffineG1 {
         groups::AffineG1::get_ys_from_x_unchecked(x.0).map(|(neq_y, y)| (Fq(neq_y), Fq(y)))
     }
 
-    pub fn compress(p: AffineG1) -> Result<[u8; 64], GroupError> {
-        let mut compressed = [0u8; 64];
-
-        if p == AffineG1::zero() {
-            return Ok(compressed);
-        }
-
-        let (x, y) = (p.x(), p.y());
-
-        x.to_big_endian(&mut compressed[..32])
-            .expect("Failed to convert Fq to bytes");
-
-        let mut y_bytes = [0u8; 32];
-        y.to_big_endian(&mut y_bytes)
-            .expect("Failed to convert Fq to bytes");
-
-        let y_is_odd = y_bytes[31] & 1;
-
-        compressed[0] |= (y_is_odd as u8) << 7;
-
-        Ok(compressed)
-    }
-
     pub fn msm(points: &[Self], scalars: &[Fr]) -> Self {
         AffineG1(groups::AffineG1::msm_variable_base(
             &points.iter().map(|p| p.0).collect::<Vec<_>>(),
@@ -898,83 +875,6 @@ impl AffineG2 {
 
     pub fn from_jacobian(g2: G2) -> Option<Self> {
         g2.0.to_affine().map(AffineG2)
-    }
-
-    pub fn deserialize_compressed(bytes: &[u8]) -> Result<Self, GroupError> {
-        if bytes.len() != 64 {
-            return Err(GroupError::InvalidInputLength);
-        }
-
-        let mut c0_bytes = [0u8; 32];
-        let mut c1_bytes = [0u8; 32];
-
-        c0_bytes.copy_from_slice(&bytes[..32]);
-        c1_bytes.copy_from_slice(&bytes[32..]);
-
-        let negate_point = c0_bytes[31] & 1 == 1;
-        let hint = c0_bytes[31] & 2 == 2;
-
-        for i in (1..32).rev() {
-            c0_bytes[i] = (c0_bytes[i] >> 2) | (c0_bytes[i - 1] << 6);
-        }
-        c0_bytes[0] >>= 2;
-
-        let x0 = Fq::from_be_bytes_mod_order(&c0_bytes).expect("Failed to convert Fq to bytes");
-        let x1 = Fq::from_be_bytes_mod_order(&c1_bytes).expect("Failed to convert Fq to bytes");
-
-        let n3ab = x0
-            * x1
-            * Fq::from_str(
-                "21888242871839275222246405745257275088696311157297823662689037894645226208583", // P - 3
-            )
-            .expect("Failed to convert Fq to bytes");
-        let a_3 = x0 * x0 * x0;
-        let b_3 = x1 * x1 * x1;
-
-        let y0 = Fq::from_str(
-            "19485874751759354771024239261021720505790618469301721065564631296452457478373", // FRACTION_27_82_FP
-        )
-        .expect("Failed to convert Fq to bytes")
-            + a_3
-            + n3ab * x1;
-        let y1 = -(Fq::from_str(
-            "21621313080719284060999498358119991246151234191964923374119659383734918571893", // FRACTION_3_82_FP
-        )
-        .expect("Failed to convert Fq to bytes")
-            + b_3
-            + n3ab * x0);
-
-        let mut y = Fq2::new(y0, y1).sqrt().expect("Failed to calculate sqrt");
-        if negate_point {
-            y = -y;
-        }
-
-        AffineG2::new(Fq2::new(x0, x1), y)
-    }
-
-    pub fn compress(p: AffineG2) -> Result<[u8; 64], GroupError> {
-        let mut compressed = [0u8; 64];
-
-        if p == AffineG2::zero() {
-            return Ok(compressed);
-        }
-
-        let (x, y) = (p.x(), p.y());
-        let (x_c0, x_c1) = (Fq(*x.0.real()), Fq(*x.0.imaginary()));
-        let (_y_c0, y_c1) = (Fq(*y.0.real()), Fq(*y.0.imaginary()));
-
-        x_c0.to_big_endian(&mut compressed[..32])
-            .expect("Failed to convert Fq to bytes");
-        x_c1.to_big_endian(&mut compressed[32..])
-            .expect("Failed to convert Fq to bytes");
-
-        let y_neg = y_c1 > -y_c1;
-
-        let last_byte = &mut compressed[31];
-        *last_byte &= 0b11111100;
-        *last_byte |= (y_neg as u8) & 1;
-
-        Ok(compressed)
     }
 
     pub fn get_ys_from_x_unchecked(x: Fq2) -> Option<(Fq2, Fq2)> {

@@ -153,35 +153,6 @@ impl Fr {
 
         self
     }
-
-    #[inline]
-    pub fn divn(&self, mut n: u32) -> Fr {
-        if n >= 256 {
-            return Fr::zero();
-        }
-
-        let mut out = *self;
-
-        while n >= 128 {
-            let mut t = 0;
-            for i in out.0 .0.iter_mut().rev() {
-                core::mem::swap(&mut t, i);
-            }
-            n -= 128
-        }
-
-        if n > 0 {
-            let mut t = 0;
-            for i in out.0 .0.iter_mut().rev() {
-                let t2 = *i << (64 - n);
-                *i >>= n;
-                *i |= t;
-                t = t2;
-            }
-        }
-
-        out
-    }
 }
 
 impl FieldElement for Fr {
