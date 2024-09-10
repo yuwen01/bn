@@ -11,7 +11,8 @@ use core::{
     fmt,
     ops::{Add, Mul, Neg, Sub},
 };
-use rand::Rng;
+
+use rand::{thread_rng, Rng};
 #[cfg(target_os = "zkvm")]
 use sp1_lib::{syscall_bn254_add, syscall_bn254_double};
 // This is the NAF version of ate_loop_count. Entries are all mod 4, so 3 = -1
@@ -272,26 +273,34 @@ impl Add<AffineG1> for AffineG1 {
     }
 }
 
+impl Sub<AffineG1> for AffineG1 {
+    type Output = AffineG1;
+
+    fn sub(self, other: AffineG1) -> AffineG1 {
+        self + (-other)
+    }
+}
+
 impl Mul<Fr> for AffineG1 {
     type Output = AffineG1;
 
     fn mul(self, other: Fr) -> AffineG1 {
-        let mut res = AffineG1::zero();
+        let mut res: Option<AffineG1> = None;
         let mut found_one = false;
 
         for i in U256::from(other).bits() {
             if found_one {
-                res = res.double();
+                res = res.map(|mut p| p.double());
             }
 
             #[allow(clippy::suspicious_arithmetic_impl)]
             if i {
                 found_one = true;
-                res = res + self;
+                res = res.map(|p| p + self).or(Some(self));
             }
         }
 
-        res
+        res.unwrap()
     }
 }
 
@@ -325,7 +334,7 @@ impl<P: GroupParams> PartialEq for G<P> {
 impl<P: GroupParams> Eq for G<P> {}
 
 impl<P: GroupParams> G<P> {
-    pub fn to_affine(self) -> Option<AffineG<P>> {
+    pub fn to_affine(&self) -> Option<AffineG<P>> {
         if self.z.is_zero() {
             None
         } else if self.z == P::Base::one() {
@@ -334,12 +343,12 @@ impl<P: GroupParams> G<P> {
                 y: self.y,
             })
         } else {
-            let zinv = self.z.inverse().unwrap();
+            let zinv = self.z.inverse_unconstrained().unwrap();
             let zinv_squared = zinv.squared();
 
             Some(AffineG {
                 x: self.x * zinv_squared,
-                y: self.y * (zinv_squared * zinv),
+                y: self.y * (zinv * zinv_squared),
             })
         }
     }
@@ -902,7 +911,19 @@ impl G1 {
             .iter()
             .zip(scalars)
             .map(|(&p, &s)| p * s)
-            .reduce(|acc, p| acc + p)
+            .fold(G1::zero(), |acc, p| acc + p)
+    }
+}
+
+impl AffineG1 {
+    pub fn msm_variable_base(points: &[AffineG1], scalars: &[Fr]) -> AffineG1 {
+        points
+            .iter()
+            .zip(scalars)
+            .map(|(&p, &s)| p * s)
+            .fold(None, |acc: Option<AffineG1>, p| {
+                acc.map(|acc| acc + p).or(Some(p))
+            })
             .unwrap()
     }
 }
@@ -4593,4 +4614,40 @@ fn test_y_at_point_at_infinity() {
 
     assert!(G2::zero().y == Fq2::one());
     assert!((-G2::zero()).y == Fq2::one());
+}
+
+#[test]
+fn test_to_from_affine() {
+    let mut rng = thread_rng();
+    for i in 0..50 {
+        {
+            let p = G1::random(&mut rng);
+            let affine = p.to_affine().unwrap();
+            let p2: G1 = affine.to_jacobian();
+            assert_eq!(p, p2, "Conversion to affine and back is not working");
+        }
+        {
+            let a = G1::random(&mut rng);
+            let b = G1::random(&mut rng);
+
+            let lhs = (a + b).to_affine().unwrap();
+            let rhs = a.to_affine().unwrap() + b.to_affine().unwrap();
+            assert_eq!(lhs, rhs, "Addition is not working");
+
+            // let double_affine = a.to_affine().unwrap().double();
+            // let double_affine_manual = (a + a).to_affine().unwrap();
+            // assert_eq!(
+            //     double_affine, double_affine_manual,
+            //     "Doubling is not working"
+            // );
+
+            // let scalar = Fr::random(&mut rng);
+            // let product_affine = (a * scalar).to_affine().unwrap();
+            // let product_affine_manual = a.to_affine().unwrap() * scalar;
+            // assert_eq!(
+            //     product_affine, product_affine_manual,
+            //     "Multiplication is not working"
+            // );
+        }
+    }
 }

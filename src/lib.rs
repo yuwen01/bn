@@ -1,4 +1,4 @@
-#![no_std]
+// #![no_std]
 
 extern crate alloc;
 
@@ -484,15 +484,6 @@ impl G1 {
             &points.iter().map(|p| p.0).collect::<Vec<_>>(),
             &scalars.iter().map(|x| x.0).collect::<Vec<_>>(),
         ))
-        // points
-        //     .iter()
-        //     .zip(scalars)
-        //     // .map(|(&p, &s)| AffineG1::mul(p.into(), s))
-        //     .map(|(&p, &s)| p * s)
-        //     .reduce(|acc, p| AffineG1::add(acc.into(), p.into()).into())
-        //     // .reduce(|acc: AffineG1, p: AffineG1| acc + p)
-        //     .unwrap()
-        //     .into()
     }
 
     pub fn double(&self) -> Self {
@@ -624,6 +615,13 @@ impl AffineG1 {
 
         Ok(compressed)
     }
+
+    pub fn msm(points: &[Self], scalars: &[Fr]) -> Self {
+        AffineG1(groups::AffineG1::msm_variable_base(
+            &points.iter().map(|p| p.0).collect::<Vec<_>>(),
+            &scalars.iter().map(|x| x.0).collect::<Vec<_>>(),
+        ))
+    }
 }
 
 impl Neg for AffineG1 {
@@ -655,6 +653,14 @@ impl Add<AffineG1> for AffineG1 {
 
     fn add(self, other: AffineG1) -> AffineG1 {
         AffineG1(self.0 + other.0)
+    }
+}
+
+impl Sub<AffineG1> for AffineG1 {
+    type Output = AffineG1;
+
+    fn sub(self, other: AffineG1) -> AffineG1 {
+        AffineG1(self.0 - other.0)
     }
 }
 
