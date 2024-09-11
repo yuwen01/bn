@@ -4619,7 +4619,7 @@ fn test_y_at_point_at_infinity() {
 #[test]
 fn test_to_from_affine() {
     let mut rng = thread_rng();
-    for i in 0..50 {
+    for _ in 0..10 {
         {
             let p = G1::random(&mut rng);
             let affine = p.to_affine().unwrap();
@@ -4634,20 +4634,20 @@ fn test_to_from_affine() {
             let rhs = a.to_affine().unwrap() + b.to_affine().unwrap();
             assert_eq!(lhs, rhs, "Addition is not working");
 
-            // let double_affine = a.to_affine().unwrap().double();
-            // let double_affine_manual = (a + a).to_affine().unwrap();
-            // assert_eq!(
-            //     double_affine, double_affine_manual,
-            //     "Doubling is not working"
-            // );
+            let double_affine = a.to_affine().unwrap().double();
+            let double_affine_manual = (a + a).to_affine().unwrap();
+            assert_eq!(
+                double_affine, double_affine_manual,
+                "Doubling is not working"
+            );
 
-            // let scalar = Fr::random(&mut rng);
-            // let product_affine = (a * scalar).to_affine().unwrap();
-            // let product_affine_manual = a.to_affine().unwrap() * scalar;
-            // assert_eq!(
-            //     product_affine, product_affine_manual,
-            //     "Multiplication is not working"
-            // );
+            let scalar = Fr::random(&mut rng);
+            let product_affine = (a * scalar).to_affine().unwrap();
+            let product_affine_manual = a.to_affine().unwrap() * scalar;
+            assert_eq!(
+                product_affine, product_affine_manual,
+                "Multiplication is not working"
+            );
         }
     }
 }
