@@ -286,7 +286,7 @@ impl MulAssign for Fr {
         }
         #[cfg(not(target_os = "zkvm"))]
         {
-            self.cpu_mul(other);
+            *self = self.cpu_mul(other);
         }
     }
 }
