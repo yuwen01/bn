@@ -561,6 +561,10 @@ impl AffineG1 {
         Ok(AffineG1(groups::AffineG1::new(x.0, y.0)?))
     }
 
+    pub fn new_unchecked(x: Fq, y: Fq) -> Self {
+        AffineG1(groups::AffineG1::new_unchecked(x.0, y.0))
+    }
+
     pub fn zero() -> Self {
         AffineG1(groups::AffineG1::zero())
     }
@@ -855,6 +859,10 @@ impl AffineG2 {
 
     pub fn new(x: Fq2, y: Fq2) -> Result<Self, GroupError> {
         Ok(AffineG2(groups::AffineG2::new(x.0, y.0)?))
+    }
+
+    pub fn new_unchecked(x: Fq2, y: Fq2) -> Self {
+        AffineG2(groups::AffineG2::new_unchecked(x.0, y.0))
     }
 
     pub fn x(&self) -> Fq2 {

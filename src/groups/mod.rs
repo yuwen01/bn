@@ -146,6 +146,10 @@ impl<P: GroupParams> AffineG<P> {
         }
     }
 
+    pub fn new_unchecked(x: P::Base, y: P::Base) -> Self {
+        AffineG { x, y }
+    }
+
     pub fn zero() -> Self {
         AffineG {
             x: P::Base::zero(),
@@ -693,14 +697,14 @@ fn twist_mul_by_q_y() -> Fq2 {
     )
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Debug)]
 pub struct EllCoeffs {
     pub ell_0: Fq2,
     pub ell_vw: Fq2,
     pub ell_vv: Fq2,
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Debug)]
 pub struct G2Precomp {
     pub q: AffineG<G2Params>,
     pub coeffs: Vec<EllCoeffs>,
