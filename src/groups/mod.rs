@@ -12,7 +12,7 @@ use core::{
     ops::{Add, Mul, Neg, Sub},
 };
 
-use rand::{thread_rng, Rng};
+use rand::Rng;
 #[cfg(target_os = "zkvm")]
 use sp1_lib::{syscall_bn254_add, syscall_bn254_double};
 // This is the NAF version of ate_loop_count. Entries are all mod 4, so 3 = -1
@@ -4622,6 +4622,7 @@ fn test_y_at_point_at_infinity() {
 
 #[test]
 fn test_to_from_affine() {
+    use rand::thread_rng;
     let mut rng = thread_rng();
     for _ in 0..10 {
         {
