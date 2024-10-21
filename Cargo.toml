@@ -27,10 +27,10 @@ lazy_static = { version = "1.4.0", features = ["spin_no_std"] }
 rustc-hex = { version = "2", default-features = false }
 cfg-if = "1.0.0"
 bytemuck = { version = "1.16.1", features = ["derive"] }
-num-bigint = { version = "0.4.6", default-features = false}
+num-bigint = { version = "0.4.6", default-features = false }
 
 [target.'cfg(target_os = "zkvm")'.dependencies]
-sp1-lib = "1.2.0-rc1"
+sp1-lib = "3.0.0"
 
 [dev-dependencies]
 rand = { version = "0.8.3", features = ["std_rng"] }
