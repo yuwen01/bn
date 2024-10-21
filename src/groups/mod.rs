@@ -256,7 +256,7 @@ impl AffineG1 {
 impl Add<AffineG1> for AffineG1 {
     type Output = AffineG1;
 
-    fn add(mut self, other: AffineG1) -> AffineG1 {
+    fn add(self, other: AffineG1) -> AffineG1 {
         #[cfg(target_os = "zkvm")]
         {
             let mut out = self;
