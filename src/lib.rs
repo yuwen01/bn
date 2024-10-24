@@ -779,7 +779,6 @@ impl Mul<Fr> for G2 {
         G2(self.0 * other.0)
     }
 }
-extern crate std;
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[repr(C)]
 pub struct Gt(fields::Fq12);
@@ -886,7 +885,6 @@ impl AffineG2 {
     }
 
     pub fn get_ys_from_x_unchecked(x: Fq2) -> Option<(Fq2, Fq2)> {
-        std::println!("IN FQ2");
         groups::AffineG2::get_ys_from_x_unchecked(x.0).map(|(neq_y, y)| (Fq2(neq_y), Fq2(y)))
     }
 }

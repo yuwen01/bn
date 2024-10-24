@@ -122,7 +122,6 @@ impl Display for Error {
         }
     }
 }
-extern crate std;
 impl<P: GroupParams> AffineG<P> {
     pub fn new(x: P::Base, y: P::Base) -> Result<Self, Error> {
         let lhs = y.squared();
@@ -256,6 +255,8 @@ impl AffineG1 {
 impl Add<AffineG1> for AffineG1 {
     type Output = AffineG1;
 
+    // We only need the mutability for the zkvm case.
+    #[allow(unused_mut)]
     fn add(mut self, other: AffineG1) -> AffineG1 {
         #[cfg(target_os = "zkvm")]
         {
