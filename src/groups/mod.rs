@@ -348,7 +348,7 @@ impl<P: GroupParams> G<P> {
                 y: self.y,
             })
         } else {
-            let zinv = self.z.inverse_unconstrained().unwrap();
+            let zinv = self.z.inverse().unwrap();
             let zinv_squared = zinv.squared();
 
             Some(AffineG {
