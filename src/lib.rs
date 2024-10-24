@@ -779,6 +779,7 @@ impl Mul<Fr> for G2 {
         G2(self.0 * other.0)
     }
 }
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[repr(C)]
 pub struct Gt(fields::Fq12);
